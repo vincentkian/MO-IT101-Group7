@@ -23,7 +23,7 @@ The MotorPH Payroll System is a Java-based application designed to simplify payr
 ## Getting Started
 1. Clone this repository:
    bash
-   git clone (https://github.com/vincentkian/Motor-PH-Payroll-System)
+   git clone (https://github.com/vincentkian/MO-IT101-Group7)
    
 2. Ensure the required dependencies (e.g., Apache POI) are added to your project.
 3. Place the source file `MotorPH_Employee_Data.xlsx` in the `src` directory:
