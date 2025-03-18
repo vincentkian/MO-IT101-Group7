@@ -199,27 +199,30 @@ public class MotorPHPayrollSystem {
     }
 
     private static List<String[]> getDateRangeForMonth(String month) {
+        
+        // Define the start and end dates for the payroll system's period
         LocalDate startDate = LocalDate.of(2024, 6, 3); // First working day of June
-        LocalDate endDate = LocalDate.of(2024, 12, 31); // Last day of the year
+        LocalDate endDate = LocalDate.of(2024, 12, 31); // Last working day of the year
         List<String[]> weeklyRanges = new ArrayList<>();
 
         // Generate weekly ranges dynamically from June 3 to December 31
         LocalDate weekStart = startDate;
         while (!weekStart.isAfter(endDate)) {
-            LocalDate weekEnd = weekStart.plusDays(6);
+            LocalDate weekEnd = weekStart.plusDays(6); // Define week-end as 6 days after start
             if (weekEnd.isAfter(endDate)) {
-                weekEnd = endDate;
+                weekEnd = endDate; // Ensure the last week's range does not exceed endDate
             }
 
+            // Store the week range in MM/dd/yyyy format
             weeklyRanges.add(new String[]{
                 weekStart.format(DateTimeFormatter.ofPattern("MM/dd/yyyy")),
                 weekEnd.format(DateTimeFormatter.ofPattern("MM/dd/yyyy"))
             });
 
-            weekStart = weekStart.plusDays(7);
+            weekStart = weekStart.plusDays(7); // Move to the next week
         }
 
-        // Filter ranges by the given month
+        // Filter only the weeks that belong to the specified month
         List<String[]> filteredRanges = new ArrayList<>();
         for (String[] range : weeklyRanges) {
             LocalDate rangeStart = LocalDate.parse(range[0], DateTimeFormatter.ofPattern("MM/dd/yyyy"));
@@ -228,44 +231,47 @@ public class MotorPHPayrollSystem {
             }
         }
 
-        return filteredRanges;
+        return filteredRanges; // Return the filtered list of weekly date ranges
     }
 
     private static String getCellValueAsString(Cell cell) {
         if (cell == null) {
-            return "";
+            return ""; // Return an empty string for null cells
         }
 
+        // Determine the cell type and extract its value accordingly
         switch (cell.getCellType()) {
             case STRING -> {
                 return cell.getStringCellValue();
             }
             case NUMERIC -> {
                 if (DateUtil.isCellDateFormatted(cell)) {
-                    // Format the cell as time
+                    // If the cell contains a date, format it as HH:mm (time)
                     DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
                     return cell.getLocalDateTimeCellValue().toLocalTime().format(timeFormatter);
                 } else {
-                    return String.valueOf((long) cell.getNumericCellValue()); // Convert numeric to long for whole numbers
+                    // Convert numeric values to long (for whole numbers) and return as string
+                    return String.valueOf((long) cell.getNumericCellValue()); 
                 }
             }
             case BOOLEAN -> {
-                return String.valueOf(cell.getBooleanCellValue());
+                return String.valueOf(cell.getBooleanCellValue()); //Convert boolean to String 
             }
             case FORMULA -> {
                 return cell.getCellFormula();
             }
             default -> {
-                return "";
+                return ""; // Return empty string for unsupported types
             }
         }
     }
 
         private static void calculateDeductions(double monthlySalary, DecimalFormat df, double monthlyBenefits) {
-        // SSS Contribution
+
+        // Compute SSS Contribution based on salary brackets
         double sss = calculateSSS(monthlySalary);
 
-        // PhilHealth Contribution
+        // Compute PhilHealth Contribution with capped values
         double philHealth;
         if (monthlySalary <= 10000) {
             philHealth = 300.00; // Minimum contribution
@@ -274,9 +280,9 @@ public class MotorPHPayrollSystem {
         } else {
             philHealth = 1800.00; // Maximum cap
         }
-        double employeePhilHealthShare = philHealth / 2; // Only deduct employee share
+        double employeePhilHealthShare = philHealth / 2; // Employee share (50%)
         
-        // Pag-IBIG Contribution
+        // Compute Pag-IBIG Contribution with salary-based rates
         double pagIbig;
         if (monthlySalary >= 1000 && monthlySalary <= 1500) {
             pagIbig = monthlySalary * 0.01; // Employee Share is 1% for salaries between 1,000 and 1,500
@@ -287,17 +293,17 @@ public class MotorPHPayrollSystem {
         }
 
 
-        // Calculate Taxable Income (after deductions)
+       // Compute taxable income after deducting mandatory contributions
         double taxableIncome = monthlySalary - (sss + employeePhilHealthShare + pagIbig);
 
-        // Withholding Tax Calculation
+        // Compute Withholding Tax based on taxable income
         double withholdingTax = calculateWithholdingTax(taxableIncome);
 
-        // Net Pay Calculation
+        // Compute total deductions and final net salar
         double totalDeductions = sss + employeePhilHealthShare + pagIbig + withholdingTax;
         double netPay = (monthlySalary - totalDeductions) + monthlyBenefits; // Add benefits to net pay after deductions
 
-        // Display deductions and net pay
+        // Display deduction breakdown and net salary
         System.out.println("Deductions:");
         System.out.println("SSS: Php " + df.format(sss));
         System.out.println("PhilHealth: Php " + df.format(employeePhilHealthShare));
