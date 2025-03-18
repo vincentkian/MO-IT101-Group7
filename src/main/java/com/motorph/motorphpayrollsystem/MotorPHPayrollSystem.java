@@ -15,66 +15,76 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
+
+
 public class MotorPHPayrollSystem {
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
-        // Prompt for Employee Number
+        // Ask the user to enter Employee Number
         System.out.print("Enter Employee Number: ");
         int empNum = scanner.nextInt();
-        scanner.nextLine(); // Consume newline
+        scanner.nextLine(); //Consume the newline character after integer input
 
-        // Prompt for Month
+        // Ask the user to enter a valid month for payroll display
         String month;
         do {
             System.out.print("Enter the month to display: ");
             month = scanner.nextLine();
-        } while (getDateRangeForMonth(month).isEmpty());
+        } while (getDateRangeForMonth(month).isEmpty()); // Ensure valid month input
 
-        // File Path
+        // Define file path for employee data Excel file
         String filePath = "src/MotorPH_Employee_Data.xlsx";
 
-        // Display Employee Payroll
+        // Display payroll details for the specified employee and month
         displayEmployeePayroll(filePath, empNum, month);
     }
 
-    public static void displayEmployeePayroll(String filePath, int empNum, String month) {
+    public static void generatePayrollSummary(String filePath, int empNum, String month) {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              Workbook workbook = new XSSFWorkbook(fis)) {
 
+            // Access the necessary sheets from the Excel file
             Sheet empSheet = workbook.getSheet("Employee Details");
             Sheet attendanceSheet = workbook.getSheet("Attendance Record");
 
+            // Validate if required sheets exist in the Excel file
             if (empSheet == null || attendanceSheet == null) {
                 System.out.println("Required sheets not found in the Excel file.");
                 return;
             }
 
-            DecimalFormat df = new DecimalFormat("#,##0.00");
+            DecimalFormat df = new DecimalFormat("#,##0.00"); // Format for currency values
 
-            // Retrieve Employee Details
+             // Variables to store employee details
             double hourlyRate = 0; // Initialize hourly rate
             double monthlyBenefits = 0; // Initialize monthly benefits
             boolean employeeFound = false;
 
+
+            // Iterate through Employee Details sheet to find the matching employee
             for (Row row : employeeSheet) {
-                Cell employeeCell = row.getCell(0);
+                Cell employeeCell = row.getCell(0); // Employee number column
 
                 if (employeeCell != null && getCellValueAsString(employeeCell).trim().equals(String.valueOf(employeeNumber).trim())) {
                     employeeFound = true;
+
+                    // Retrieve employee details
                     String firstName = getCellValueAsString(row.getCell(2));
                     String lastName = getCellValueAsString(row.getCell(1));
                     String birthday = row.getCell(3).getLocalDateTimeCellValue().toLocalDate().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
+
+                    // Retrieve hourly rate
                     hourlyRate = row.getCell(18).getNumericCellValue(); // Retrieve hourly rate from column 19
 
-                    // Retrieve benefits
+                    // Retrieve employee benefits from respective columns
                     double riceSubsidy = row.getCell(14) != null ? row.getCell(14).getNumericCellValue() : 0; // Column 15
                     double phoneAllowance = row.getCell(15) != null ? row.getCell(15).getNumericCellValue() : 0; // Column 16
                     double clothingAllowance = row.getCell(16) != null ? row.getCell(16).getNumericCellValue() : 0; // Column 17
                     monthlyBenefits = riceSubsidy + phoneAllowance + clothingAllowance;
 
-                    // Print Basic Details
+                    // Display employee details and payroll header
                     System.out.println("========Employee Payroll Summary=======");
                     System.out.println("Employee Number: " + empNum);
                     System.out.println("Name: " + lastName + ", " + firstName);
@@ -83,16 +93,17 @@ public class MotorPHPayrollSystem {
                     System.out.println("             " + month);
                     System.out.println("---------------------------------------");
 
-                    // Calculate Weekly Pay
+                    // Calculate and display weekly pay for the employee
                     double monthlySalary = calculateWeeklyPay(attendanceSheet, empNum, hourlyRate, df, month);
 
-                    // Calculate Monthly Deductions and Net Pay
+                    // Calculate deductions and final net pay
                     calculateDeductions(monthlySalary, df, monthlyBenefits);
 
-                    return;
+                    return; // Exit after processing the employee
                 }
             }
 
+            // If employee number is not found, display an error message
             if (!employeeFound) {
                 System.out.println("Error: Employee Number " + empNum + " not found. Please try again.");
             }
@@ -129,33 +140,37 @@ public class MotorPHPayrollSystem {
                 int empNum = (int) row.getCell(0).getNumericCellValue();
                 LocalDate date = row.getCell(3).getLocalDateTimeCellValue().toLocalDate();
 
+                
+                // Process attendance only if it matches the employee and falls within the week
                 if (empNum == employeeNumber && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
                     // Retrieve log in and log out times
-                    String clockInTime = getCellValueAsString(row.getCell(4)); // Log In (HH:mm)
-                    String clockOutTime = getCellValueAsString(row.getCell(5)); // Log Out (HH:mm)
+                    String logInTime = getCellValueAsString(row.getCell(4)); // Log In (HH:mm)
+                    String logOutTime  = getCellValueAsString(row.getCell(5)); // Log Out (HH:mm)
 
-                    if (!clockInTime.isEmpty() && !clockOutTime.isEmpty()) {
+                    if (!logInTime.isEmpty() && !logOutTime.isEmpty()) {
                         try {
-                            LocalTime clockIn = LocalTime.parse(clockInTime, DateTimeFormatter.ofPattern("HH:mm"));
-                            LocalTime clockOut = LocalTime.parse(clockOutTime, DateTimeFormatter.ofPattern("HH:mm"));
-
+                            // Parse time strings into LocalTime objects
+                            LocalTime logIn = LocalTime.parse(logInTime, DateTimeFormatter.ofPattern("HH:mm"));
+                            LocalTime logOut = LocalTime.parse(logOutTime , DateTimeFormatter.ofPattern("HH:mm"));
+                          
+                            // Compute total minutes worked and late minutes
                             LocalTime workStart = LocalTime.of(8, 0);
                             LocalTime workEnd = LocalTime.of(17, 0);
                             LocalTime lunchStart = LocalTime.of(12, 0);
                             LocalTime lunchEnd = LocalTime.of(13, 0);
 
-                            if (clockIn.isAfter(workStart)) {
-                                lateMinutes += workStart.until(clockIn, java.time.temporal.ChronoUnit.MINUTES);
+                            if (logIn.isAfter(workStart)) {
+                                lateMinutes += workStart.until(logIn, java.time.temporal.ChronoUnit.MINUTES);
                             }
 
-                            LocalTime actualWorkStart = clockIn.isAfter(workStart) ? clockIn : workStart;
+                            LocalTime actualWorkStart = logIn.isAfter(workStart) ? logIn : workStart;
                             long morningMinutes = Math.max(0, actualWorkStart.until(lunchStart, java.time.temporal.ChronoUnit.MINUTES));
-                            long afternoonMinutes = Math.max(0, lunchEnd.until(clockOut.isBefore(workEnd) ? clockOut : workEnd, java.time.temporal.ChronoUnit.MINUTES));
+                            long afternoonMinutes = Math.max(0, lunchEnd.until(logOut.isBefore(workEnd) ? logOut : workEnd, java.time.temporal.ChronoUnit.MINUTES));
 
                             regularMinutes += (morningMinutes + afternoonMinutes);
 
-                            if (!clockIn.isAfter(workStart) && clockOut.isAfter(workEnd)) {
-                                long overtimeMinutes = workEnd.until(clockOut, java.time.temporal.ChronoUnit.MINUTES);
+                            if (!logIn.isAfter(workStart) && logOut.isAfter(workEnd)) {
+                                long overtimeMinutes = workEnd.until(logOut, java.time.temporal.ChronoUnit.MINUTES);
                                 weeklyOvertimePay += (overtimeMinutes / 60.0) * overtimeRate;
                             }
 
@@ -170,7 +185,7 @@ public class MotorPHPayrollSystem {
             double weeklySalary = weeklyRegularPay + weeklyOvertimePay;
             totalMonthlyPay += weeklySalary;
 
-            // Print weekly summary
+            // Display weekly summary
             System.out.println("Regular Hours: " + (regularMinutes / 60) + " hrs " + (regularMinutes % 60) + " min/s");
             System.out.println("Accumulated Late Time: " + (lateMinutes / 60) + " hr/s " + (lateMinutes % 60) + " min/s");
             System.out.println("Regular Pay: Php " + df.format(weeklyRegularPay));
