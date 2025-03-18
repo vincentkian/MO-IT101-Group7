@@ -22,7 +22,7 @@ public class MotorPHPayrollSystem {
 
         // Prompt for Employee Number
         System.out.print("Enter Employee Number: ");
-        int employeeNumber = scanner.nextInt();
+        int empNum = scanner.nextInt();
         scanner.nextLine(); // Consume newline
 
         // Prompt for Month
@@ -36,17 +36,17 @@ public class MotorPHPayrollSystem {
         String filePath = "src/MotorPH_Employee_Data.xlsx";
 
         // Display Employee Payroll
-        displayEmployeePayroll(filePath, employeeNumber, month);
+        displayEmployeePayroll(filePath, empNum, month);
     }
 
-    public static void displayEmployeePayroll(String filePath, int employeeNumber, String month) {
+    public static void displayEmployeePayroll(String filePath, int empNum, String month) {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              Workbook workbook = new XSSFWorkbook(fis)) {
 
-            Sheet employeeSheet = workbook.getSheet("Employee Details");
+            Sheet empSheet = workbook.getSheet("Employee Details");
             Sheet attendanceSheet = workbook.getSheet("Attendance Record");
 
-            if (employeeSheet == null || attendanceSheet == null) {
+            if (empSheet == null || attendanceSheet == null) {
                 System.out.println("Required sheets not found in the Excel file.");
                 return;
             }
@@ -76,7 +76,7 @@ public class MotorPHPayrollSystem {
 
                     // Print Basic Details
                     System.out.println("========Employee Payroll Summary=======");
-                    System.out.println("Employee Number: " + employeeNumber);
+                    System.out.println("Employee Number: " + empNum);
                     System.out.println("Name: " + lastName + ", " + firstName);
                     System.out.println("Birthday: " + birthday);
                     System.out.println("---------------------------------------");
@@ -84,7 +84,7 @@ public class MotorPHPayrollSystem {
                     System.out.println("---------------------------------------");
 
                     // Calculate Weekly Pay
-                    double monthlySalary = calculateWeeklyPay(attendanceSheet, employeeNumber, hourlyRate, df, month);
+                    double monthlySalary = calculateWeeklyPay(attendanceSheet, empNum, hourlyRate, df, month);
 
                     // Calculate Monthly Deductions and Net Pay
                     calculateDeductions(monthlySalary, df, monthlyBenefits);
@@ -94,14 +94,14 @@ public class MotorPHPayrollSystem {
             }
 
             if (!employeeFound) {
-                System.out.println("Error: Employee Number " + employeeNumber + " not found. Please try again.");
+                System.out.println("Error: Employee Number " + empNum + " not found. Please try again.");
             }
         } catch (IOException e) {
             System.out.println("Error reading file: " + e.getMessage());
         }
     }
 
-    public static double calculateWeeklyPay(Sheet attendanceSheet, int employeeNumber, double hourlyRate, DecimalFormat df, String month) {
+    public static double calculateWeeklyPay(Sheet attendanceSheet, int empNum, double hourlyRate, DecimalFormat df, String month) {
         double totalMonthlyPay = 0;
         double overtimeRate = hourlyRate * 0.25; // Overtime = 25% of hourly rate
 
