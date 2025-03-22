@@ -34,7 +34,11 @@ public class MotorPHPayrollSystem {
         } while (getDateRangeForMonth(month).isEmpty()); // Ensure valid month input
 
         // Define file path for employee data Excel file
-        String filePath = "src/MotorPH_Employee_Data.xlsx";
+        File file = new File(filePath);
+        if (!file.exists()) {
+            System.out.println("File not found: " + filePath);
+            return;
+        }
 
         // Display payroll details for the specified employee and month
         displayEmployeePayroll(filePath, empNum, month);
@@ -63,7 +67,7 @@ public class MotorPHPayrollSystem {
 
 
             // Iterate through Employee Details sheet to find the matching employee
-            for (Row row : employeeSheet) {
+            for (Row row : empSheet) {
                 Cell employeeCell = row.getCell(0); // Employee number column
 
                 if (employeeCell != null && getCellValueAsString(employeeCell).trim().equals(String.valueOf(employeeNumber).trim())) {
@@ -364,6 +368,10 @@ public class MotorPHPayrollSystem {
         // Return the corresponding contribution
         return sssTable.get(key);
 }
+       public static double calculateSSS(double salary) {
+       return sssTable.floorEntry(salary) != null ? sssTable.floorEntry(salary).getValue() : 0;
+}
+
 
        private static double calculateWithholdingTax(double taxableIncome) {
         double withholdingTax = 0; // Initialize withholding tax to 0
