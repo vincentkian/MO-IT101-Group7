@@ -1,4 +1,3 @@
-
 package com.motorph.motorphpayrollsystem;
 
 import org.apache.poi.ss.usermodel.*;
@@ -13,9 +12,9 @@ import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.Scanner;
-
-
 
 public class MotorPHPayrollSystem {
 
@@ -51,7 +50,7 @@ public class MotorPHPayrollSystem {
 
             // Validate if required sheets exist in the Excel file
             if (empSheet == null || attendanceSheet == null) {
-                System.out.println("Required sheets not found in the Excel file.");
+                System.out.println(" Error: Required sheets not found in the Excel file.");
                 return;
             }
 
@@ -77,6 +76,10 @@ public class MotorPHPayrollSystem {
 
                     // Retrieve hourly rate
                     hourlyRate = row.getCell(18).getNumericCellValue(); // Retrieve hourly rate from column 19
+                     if (hourlyRate <= 0) {
+                        System.out.println("Error: Invalid hourly rate" + empNum);
+                        return;
+                    }
 
                     // Retrieve employee benefits from respective columns
                     double riceSubsidy = row.getCell(14) != null ? row.getCell(14).getNumericCellValue() : 0; // Column 15
@@ -134,15 +137,17 @@ public class MotorPHPayrollSystem {
             double weeklyOvertimePay = 0;
 
             for (Row row : attendanceSheet) {
-                if (row.getRowNum() == 0) continue; // Skip header row
-
+                if (row.getRowNum() == 0) {
+                continue; // Skip header row
+                }
+                
                 // Retrieve employee number and date
                 int empNum = (int) row.getCell(0).getNumericCellValue();
                 LocalDate date = row.getCell(3).getLocalDateTimeCellValue().toLocalDate();
 
                 
                 // Process attendance only if it matches the employee and falls within the week
-                if (empNum == employeeNumber && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
+               if (empNum == employeeNumber && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
                     // Retrieve log in and log out times
                     String logInTime = getCellValueAsString(row.getCell(4)); // Log In (HH:mm)
                     String logOutTime  = getCellValueAsString(row.getCell(5)); // Log Out (HH:mm)
@@ -275,9 +280,11 @@ public class MotorPHPayrollSystem {
         double philHealth;
         if (monthlySalary <= 10000) {
             philHealth = 300.00; // Minimum contribution
-        } else if (monthlySalary > 10000 && monthlySalary < 60000) {
+        } 
+        else if (monthlySalary > 10000 && monthlySalary < 60000) {
             philHealth = monthlySalary * 0.03; // 3% of monthly salary
-        } else {
+        } 
+        else {
             philHealth = 1800.00; // Maximum cap
         }
         double employeePhilHealthShare = philHealth / 2; // Employee share (50%)
@@ -286,9 +293,11 @@ public class MotorPHPayrollSystem {
         double pagIbig;
         if (monthlySalary >= 1000 && monthlySalary <= 1500) {
             pagIbig = monthlySalary * 0.01; // Employee Share is 1% for salaries between 1,000 and 1,500
-        } else if (monthlySalary > 1500) {
+        } 
+        else if (monthlySalary > 1500) {
             pagIbig = Math.min(monthlySalary * 0.02, 100.00); // Employee Share is 2%, capped at 100
-        } else {
+        } 
+        else {
             pagIbig = 0; // No contribution for salaries below 1,000
         }
 
@@ -313,117 +322,78 @@ public class MotorPHPayrollSystem {
         System.out.println("Net Pay: Php " + df.format(netPay));
     }
 
-    private static double calculateSSS(double monthlySalary) {
-        if (monthlySalary < 3250) {
-            return 135.00;
-        } else if (monthlySalary < 3750) {
-            return 157.50;
-        } else if (monthlySalary < 4250) {
-            return 180.00;
-        } else if (monthlySalary < 4750) {
-            return 202.50;
-        } else if (monthlySalary < 5250) {
-            return 225.00;
-        } else if (monthlySalary < 5750) {
-            return 247.50;
-        } else if (monthlySalary < 6250) {
-            return 270.00;
-        } else if (monthlySalary < 6750) {
-            return 292.50;
-        } else if (monthlySalary < 7250) {
-            return 315.00;
-        } else if (monthlySalary < 7750) {
-            return 337.50;
-        } else if (monthlySalary < 8250) {
-            return 360.00;
-        } else if (monthlySalary < 8750) {
-            return 382.50;
-        } else if (monthlySalary < 9250) {
-            return 405.00;
-        } else if (monthlySalary < 9750) {
-            return 427.50;
-        } else if (monthlySalary < 10250) {
-            return 450.00;
-        } else if (monthlySalary < 10750) {
-            return 472.50;
-        } else if (monthlySalary < 11250) {
-            return 495.00;
-        } else if (monthlySalary < 11750) {
-            return 517.50;
-        } else if (monthlySalary < 12250) {
-            return 540.00;
-        } else if (monthlySalary < 12750) {
-            return 562.50;
-        } else if (monthlySalary < 13250) {
-            return 585.00;
-        } else if (monthlySalary < 13750) {
-            return 607.50;
-        } else if (monthlySalary < 14250) {
-            return 630.00;
-        } else if (monthlySalary < 14750) {
-            return 652.50;
-        } else if (monthlySalary < 15250) {
-            return 675.00;
-        } else if (monthlySalary < 15750) {
-            return 697.50;
-        } else if (monthlySalary < 16250) {
-            return 720.00;
-        } else if (monthlySalary < 16750) {
-            return 742.50;
-        } else if (monthlySalary < 17250) {
-            return 765.00;
-        } else if (monthlySalary < 17750) {
-            return 787.50;
-        } else if (monthlySalary < 18250) {
-            return 810.00;
-        } else if (monthlySalary < 18750) {
-            return 832.50;
-        } else if (monthlySalary < 19250) {
-            return 855.00;
-        } else if (monthlySalary < 19750) {
-            return 877.50;
-        } else if (monthlySalary < 20250) {
-            return 900.00;
-        } else if (monthlySalary < 20750) {
-            return 922.50;
-        } else if (monthlySalary < 21250) {
-            return 945.00;
-        } else if (monthlySalary < 21750) {
-            return 967.50;
-        } else if (monthlySalary < 22250) {
-            return 990.00;
-        } else if (monthlySalary < 22750) {
-            return 1012.50;
-        } else if (monthlySalary < 23250) {
-            return 1035.00;
-        } else if (monthlySalary < 23750) {
-            return 1057.50;
-        } else if (monthlySalary < 24250) {
-            return 1080.00;
-        } else if (monthlySalary < 24750) {
-            return 1102.50;
-        } else {
-            return 1125.00; // Maximum cap
+   public class ConditionsSSS{
+    // TreeMap to store SSS contribution brackets with salary as the key and corresponding SSS contribution as the value
+    private static final NavigableMap<Double, Double> sssTable = new TreeMap<>();
+    // Static block to initialize the SSS salary brackets and corresponding contribution amounts
+    static {
+        double[] salaryBrackets = {
+            3250, 3750, 4250, 4750, 5250, 5750, 6250, 6750, 7250, 7750, 
+            8250, 8750, 9250, 9750, 10250, 10750, 11250, 11750, 12250, 12750, 
+            13250, 13750, 14250, 14750, 15250, 15750, 16250, 16750, 17250, 17750, 
+            18250, 18750, 19250, 19750, 20250, 20750, 21250, 21750, 22250, 22750, 
+            23250, 23750, 24250, 24750
+        };
+        double[] sssContributions = {
+            135.00, 157.50, 180.00, 202.50, 225.00, 247.50, 270.00, 292.50, 315.00, 337.50,
+            360.00, 382.50, 405.00, 427.50, 450.00, 472.50, 495.00, 517.50, 540.00, 562.50,
+            585.00, 607.50, 630.00, 652.50, 675.00, 697.50, 720.00, 742.50, 765.00, 787.50,
+            810.00, 832.50, 855.00, 877.50, 900.00, 922.50, 945.00, 967.50, 990.00, 1012.50,
+            1035.00, 1057.50, 1080.00, 1102.50
+        };
+        // Populating the TreeMap with salary brackets and their corresponding SSS contributions
+        for (int i = 0; i < salaryBrackets.length; i++) {
+            sssTable.put(salaryBrackets[i], sssContributions[i]);
         }
     }
+    /**
+     * Calculates the Social Security System (SSS) contribution based on the given monthly salary.
+     *
+     * @param monthlySalary The employee's monthly salary.
+     * @return The corresponding SSS contribution.
+     */
+    public static double calculateSSS(double monthlySalary) {
+        // If salary is below the minimum bracket, return the lowest contribution
+        if (monthlySalary < sssTable.firstKey()) {
+            return sssTable.get(sssTable.firstKey());
+        }
+
+        // Find the smallest key that is greater than or equal to the salary
+        Double key = sssTable.ceilingKey(monthlySalary);
     
-    private static double calculateWithholdingTax(double taxableIncome) {
-        double withholdingTax = 0;
+        // Return the corresponding contribution
+        return sssTable.get(key);
+}
 
+       private static double calculateWithholdingTax(double taxableIncome) {
+        double withholdingTax = 0; // Initialize withholding tax to 0
+    
+        // No tax for salaries ≤ 20,832
         if (taxableIncome <= 20832) {
-            withholdingTax = 0; // No tax for salaries ≤ 20,832
-        } else if (taxableIncome > 20833 && taxableIncome <= 33333) {
-            withholdingTax = (taxableIncome - 20833) * 0.20; // 20% for excess over 20,833
-        } else if (taxableIncome > 33333 && taxableIncome <= 66667) {
-            withholdingTax = 2500 + (taxableIncome - 33333) * 0.25; // Php 2,500 + 25% for excess over 33,333
-        } else if (taxableIncome > 66667 && taxableIncome <= 166667) {
-            withholdingTax = 10833 + (taxableIncome - 66667) * 0.30; // Php 10,833 + 30% for excess over 66,667
-        } else if (taxableIncome > 166667 && taxableIncome <= 666667) {
-            withholdingTax = 40833.33 + (taxableIncome - 166667) * 0.32; // Php 40,833.33 + 32% for excess over 166,667
-        } else if (taxableIncome > 666667) {
-            withholdingTax = 200833.33 + (taxableIncome - 666667) * 0.35; // Php 200,833.33 + 35% for excess over 666,667
+            withholdingTax = 0;  
+        } 
+        // 20% tax for income exceeding 20,833 up to 33,333
+        else if (taxableIncome > 20833 && taxableIncome <= 33333) {
+            withholdingTax = (taxableIncome - 20833) * 0.20;  
+        } 
+        // Php 2,500 base tax + 25% for income exceeding 33,333 up to 66,667
+        else if (taxableIncome > 33333 && taxableIncome <= 66667) {
+            withholdingTax = 2500 + (taxableIncome - 33333) * 0.25;  
+        } 
+        // Php 10,833 base tax + 30% for income exceeding 66,667 up to 166,667
+        else if (taxableIncome > 66667 && taxableIncome <= 166667) {
+            withholdingTax = 10833 + (taxableIncome - 66667) * 0.30;  
+        } 
+        // Php 40,833.33 base tax + 32% for income exceeding 166,667 up to 666,667
+        else if (taxableIncome > 166667 && taxableIncome <= 666667) {
+            withholdingTax = 40833.33 + (taxableIncome - 166667) * 0.32;  
+        } 
+        // Php 200,833.33 base tax + 35% for income exceeding 666,667
+        else if (taxableIncome > 666667) {
+            withholdingTax = 200833.33 + (taxableIncome - 666667) * 0.35;  
         }
-
-        return withholdingTax;
+    
+        return withholdingTax; // Return the computed withholding tax
     }
+
 }
