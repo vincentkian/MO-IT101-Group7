@@ -29,6 +29,8 @@ public class MotorPHPayrollSystem {
 
     static {
         // Initialize SSS contribution table
+
+        // Salary brackets (upper limit of each bracket).
         double[] salaryBrackets = {
             3250, 3750, 4250, 4750, 5250, 5750, 6250, 6750, 7250, 7750, 
             8250, 8750, 9250, 9750, 10250, 10750, 11250, 11750, 12250, 12750, 
@@ -36,6 +38,7 @@ public class MotorPHPayrollSystem {
             18250, 18750, 19250, 19750, 20250, 20750, 21250, 21750, 22250, 22750, 
             23250, 23750, 24250, 24750
         };
+        // Corresponding SSS contributions for each salary bracket.
         double[] sssContributions = {
             135.00, 157.50, 180.00, 202.50, 225.00, 247.50, 270.00, 292.50, 315.00, 337.50,
             360.00, 382.50, 405.00, 427.50, 450.00, 472.50, 495.00, 517.50, 540.00, 562.50,
@@ -44,7 +47,7 @@ public class MotorPHPayrollSystem {
             1035.00, 1057.50, 1080.00, 1102.50
         };
 
-        // Populate the sssTable
+        // Populate the NavigableMap with salary brackets as keys and corresponding contributions as values.
         for (int i = 0; i < salaryBrackets.length; i++) {
             sssTable.put(salaryBrackets[i], sssContributions[i]);
         }
