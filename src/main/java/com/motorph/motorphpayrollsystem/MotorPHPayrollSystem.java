@@ -326,7 +326,6 @@ public class MotorPHPayrollSystem {
         System.out.println("Net Pay: Php " + df.format(netPay));
     }
 
-   public class ConditionsSSS{
     // TreeMap to store SSS contribution brackets with salary as the key and corresponding SSS contribution as the value
     private static final NavigableMap<Double, Double> sssTable = new TreeMap<>();
     // Static block to initialize the SSS salary brackets and corresponding contribution amounts
@@ -367,7 +366,7 @@ public class MotorPHPayrollSystem {
     
         // Return the corresponding contribution
         return sssTable.get(key);
-}
+
 
 
        private static double calculateWithholdingTax(double taxableIncome) {
