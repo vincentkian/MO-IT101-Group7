@@ -23,7 +23,7 @@ public class MotorPHPayrollSystem {
 
         // Ask for employee number
         System.out.print("Enter Employee Number: ");
-        int employeeNumber = scanner.nextInt();
+        int empNum = scanner.nextInt();
         scanner.nextLine(); // Consume the newline character
 
         // Ask for the month to display
@@ -37,17 +37,17 @@ public class MotorPHPayrollSystem {
         String filePath = "src/MotorPH_Employee_Data.xlsx";
 
         // Display payroll details
-        displayEmployeePayroll(filePath, employeeNumber, month);
+        displayEmployeePayroll(filePath, empNum, month);
     }
 
     /**
      * Displays the payroll summary for a specific employee and month.
      *
      * @param filePath       Path to the Excel file containing employee data.
-     * @param employeeNumber The employee number to process.
+     * @param empNum         The employee number to process.
      * @param month          The month for which payroll is calculated.
      */
-    public static void displayEmployeePayroll(String filePath, int employeeNumber, String month) {
+    public static void displayEmployeePayroll(String filePath, int empNum, String month) {
         try (FileInputStream fis = new FileInputStream(new File(filePath));
              Workbook workbook = new XSSFWorkbook(fis)) {
 
@@ -62,9 +62,9 @@ public class MotorPHPayrollSystem {
             }
 
             // Find employee details
-            EmployeeDetails employeeDetails = getEmployeeDetails(employeeSheet, employeeNumber);
+            EmployeeDetails employeeDetails = getEmployeeDetails(employeeSheet, empNum);
             if (employeeDetails == null) {
-                System.out.println("Error: Employee Number " + employeeNumber + " not found.");
+                System.out.println("Error: Employee Number " + empNum + " not found.");
                 return;
             }
 
@@ -72,7 +72,7 @@ public class MotorPHPayrollSystem {
             displayEmployeeHeader(employeeDetails, month);
 
             // Calculate monthly salary
-            double monthlySalary = calculateMonthlySalary(attendanceSheet, employeeNumber, employeeDetails.getHourlyRate(), month);
+            double monthlySalary = calculateMonthlySalary(attendanceSheet, empNum, employeeDetails.getHourlyRate(), month);
 
             // Calculate deductions and net pay
             calculateDeductions(monthlySalary, employeeDetails.getMonthlyBenefits());
@@ -85,14 +85,14 @@ public class MotorPHPayrollSystem {
      * Retrieves employee details from the Excel sheet.
      *
      * @param employeeSheet  The sheet containing employee details.
-     * @param employeeNumber The employee number to search for.
+     * @param empNum The employee number to search for.
      * @return EmployeeDetails object containing employee information, or null if not found.
      */
-    private static EmployeeDetails getEmployeeDetails(Sheet employeeSheet, int employeeNumber) {
+    private static EmployeeDetails getEmployeeDetails(Sheet employeeSheet, int empNum) {
         for (Row row : employeeSheet) {
             Cell employeeCell = row.getCell(0);
 
-            if (employeeCell != null && getCellValueAsString(employeeCell).trim().equals(String.valueOf(employeeNumber).trim())) {
+            if (employeeCell != null && getCellValueAsString(employeeCell).trim().equals(String.valueOf(empNum).trim())) {
                 String firstName = getCellValueAsString(row.getCell(2));
                 String lastName = getCellValueAsString(row.getCell(1));
                 String birthday = row.getCell(3).getLocalDateTimeCellValue().toLocalDate().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
@@ -104,7 +104,7 @@ public class MotorPHPayrollSystem {
                 double clothingAllowance = row.getCell(16) != null ? row.getCell(16).getNumericCellValue() : 0;
                 double monthlyBenefits = riceSubsidy + phoneAllowance + clothingAllowance;
 
-                return new EmployeeDetails(employeeNumber, firstName, lastName, birthday, hourlyRate, monthlyBenefits);
+                return new EmployeeDetails(empNum, firstName, lastName, birthday, hourlyRate, monthlyBenefits);
             }
         }
         return null;
@@ -130,7 +130,7 @@ public class MotorPHPayrollSystem {
      * Calculates the monthly salary for an employee.
      *
      * @param attendanceSheet The sheet containing attendance records.
-     * @param employeeNumber  The employee number to process.
+     * @param empNum          The employee number to process.
      * @param hourlyRate      The employee's hourly rate.
      * @param month           The month for which payroll is calculated.
      * @return The total monthly salary.
@@ -166,7 +166,7 @@ public class MotorPHPayrollSystem {
                 LocalDate date = row.getCell(3).getLocalDateTimeCellValue().toLocalDate();
 
                 // Process attendance for the current employee and week
-                if (currentEmployeeNumber == employeeNumber && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
+                if (currentEmployeeNumber == empNum && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
                     String logInTime = getCellValueAsString(row.getCell(4));
                     String logOutTime = getCellValueAsString(row.getCell(5));
 
@@ -432,15 +432,15 @@ public class MotorPHPayrollSystem {
      * Represents employee details.
      */
     private static class EmployeeDetails {
-        private final int employeeNumber;
+        private final int empNum;
         private final String firstName;
         private final String lastName;
         private final String birthday;
         private final double hourlyRate;
         private final double monthlyBenefits;
 
-        public EmployeeDetails(int employeeNumber, String firstName, String lastName, String birthday, double hourlyRate, double monthlyBenefits) {
-            this.employeeNumber = employeeNumber;
+        public EmployeeDetails(int empNum, String firstName, String lastName, String birthday, double hourlyRate, double monthlyBenefits) {
+            this.empNum = empNum;
             this.firstName = firstName;
             this.lastName = lastName;
             this.birthday = birthday;
@@ -449,7 +449,7 @@ public class MotorPHPayrollSystem {
         }
 
         public int getEmployeeNumber() {
-            return employeeNumber;
+            return empNum;
         }
 
         public String getFirstName() {
