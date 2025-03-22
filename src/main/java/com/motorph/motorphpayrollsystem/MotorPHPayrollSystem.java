@@ -368,9 +368,6 @@ public class MotorPHPayrollSystem {
         // Return the corresponding contribution
         return sssTable.get(key);
 }
-       public static double calculateSSS(double salary) {
-       return sssTable.floorEntry(salary) != null ? sssTable.floorEntry(salary).getValue() : 0;
-}
 
 
        private static double calculateWithholdingTax(double taxableIncome) {
