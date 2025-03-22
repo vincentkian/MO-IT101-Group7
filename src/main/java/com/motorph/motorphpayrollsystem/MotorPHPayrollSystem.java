@@ -18,41 +18,6 @@ import java.util.Scanner;
 
 public class MotorPHPayrollSystem {
 
-    // Constants for better readability
-    private static final double OVERTIME_RATE_MULTIPLIER = 0.25; // Overtime is 25% of hourly rate
-    private static final double PHILHEALTH_MIN_CONTRIBUTION = 300.00;
-    private static final double PHILHEALTH_MAX_CONTRIBUTION = 1800.00;
-    private static final double PAG_IBIG_MAX_CONTRIBUTION = 100.00;
-
-    // SSS Contribution Table
-    private static final NavigableMap<Double, Double> sssTable = new TreeMap<>();
-
-    static {
-        // Initialize SSS contribution table
-
-        // Salary brackets (upper limit of each bracket).
-        double[] salaryBrackets = {
-            3250, 3750, 4250, 4750, 5250, 5750, 6250, 6750, 7250, 7750, 
-            8250, 8750, 9250, 9750, 10250, 10750, 11250, 11750, 12250, 12750, 
-            13250, 13750, 14250, 14750, 15250, 15750, 16250, 16750, 17250, 17750, 
-            18250, 18750, 19250, 19750, 20250, 20750, 21250, 21750, 22250, 22750, 
-            23250, 23750, 24250, 24750
-        };
-        // Corresponding SSS contributions for each salary bracket.
-        double[] sssContributions = {
-            135.00, 157.50, 180.00, 202.50, 225.00, 247.50, 270.00, 292.50, 315.00, 337.50,
-            360.00, 382.50, 405.00, 427.50, 450.00, 472.50, 495.00, 517.50, 540.00, 562.50,
-            585.00, 607.50, 630.00, 652.50, 675.00, 697.50, 720.00, 742.50, 765.00, 787.50,
-            810.00, 832.50, 855.00, 877.50, 900.00, 922.50, 945.00, 967.50, 990.00, 1012.50,
-            1035.00, 1057.50, 1080.00, 1102.50
-        };
-
-        // Populate the NavigableMap with salary brackets as keys and corresponding contributions as values.
-        for (int i = 0; i < salaryBrackets.length; i++) {
-            sssTable.put(salaryBrackets[i], sssContributions[i]);
-        }
-    }
-
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
 
@@ -172,7 +137,7 @@ public class MotorPHPayrollSystem {
      */
     private static double calculateMonthlySalary(Sheet attendanceSheet, int employeeNumber, double hourlyRate, String month) {
         double totalMonthlyPay = 0;
-        double overtimeRate = hourlyRate * OVERTIME_RATE_MULTIPLIER;
+        double overtimeRate = hourlyRate * 0.25; // Overtime rate multiplier
 
         // Get weekly date ranges for the specified month
         List<String[]> weeklyRanges = getDateRangeForMonth(month);
@@ -267,6 +232,11 @@ public class MotorPHPayrollSystem {
     private static void calculateDeductions(double monthlySalary, double monthlyBenefits) {
         DecimalFormat df = new DecimalFormat("#,##0.00");
 
+        // Constants for deductions
+        final double PHILHEALTH_MIN_CONTRIBUTION = 300.00;
+        final double PHILHEALTH_MAX_CONTRIBUTION = 1800.00;
+        final double PAG_IBIG_MAX_CONTRIBUTION = 100.00;
+
         // Calculate SSS contribution
         double sss = calculateSSS(monthlySalary);
 
@@ -318,15 +288,31 @@ public class MotorPHPayrollSystem {
      * @return The SSS contribution.
      */
     private static double calculateSSS(double monthlySalary) {
+        // Initialize SSS contribution table
+        NavigableMap<Double, Double> sssTable = new TreeMap<>();
+        double[] salaryBrackets = {
+            3250, 3750, 4250, 4750, 5250, 5750, 6250, 6750, 7250, 7750, 
+            8250, 8750, 9250, 9750, 10250, 10750, 11250, 11750, 12250, 12750, 
+            13250, 13750, 14250, 14750, 15250, 15750, 16250, 16750, 17250, 17750, 
+            18250, 18750, 19250, 19750, 20250, 20750, 21250, 21750, 22250, 22750, 
+            23250, 23750, 24250, 24750
+        };
+        double[] sssContributions = {
+            135.00, 157.50, 180.00, 202.50, 225.00, 247.50, 270.00, 292.50, 315.00, 337.50,
+            360.00, 382.50, 405.00, 427.50, 450.00, 472.50, 495.00, 517.50, 540.00, 562.50,
+            585.00, 607.50, 630.00, 652.50, 675.00, 697.50, 720.00, 742.50, 765.00, 787.50,
+            810.00, 832.50, 855.00, 877.50, 900.00, 922.50, 945.00, 967.50, 990.00, 1012.50,
+            1035.00, 1057.50, 1080.00, 1102.50
+        };
+
+        // Populate the sssTable
+        for (int i = 0; i < salaryBrackets.length; i++) {
+            sssTable.put(salaryBrackets[i], sssContributions[i]);
+        }
+
         // Validate monthlySalary
         if (monthlySalary <= 0) {
             System.out.println("Error: Invalid monthly salary for SSS calculation: " + monthlySalary);
-            return 0.0;
-        }
-
-        // Check if sssTable is empty
-        if (sssTable.isEmpty()) {
-            System.out.println("Error: SSS contribution table is not initialized.");
             return 0.0;
         }
 
