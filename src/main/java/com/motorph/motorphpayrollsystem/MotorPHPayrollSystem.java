@@ -16,7 +16,7 @@ import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.Scanner;
 
-public class MotorPHPayrollSystem {
+ public class MotorPHPayrollSystem {
 
     public static void main(String[] args) {
         Scanner scanner = new Scanner(System.in);
@@ -339,24 +339,34 @@ public class MotorPHPayrollSystem {
      * @param taxableIncome The employee's taxable income.
      * @return The withholding tax.
      */
-    private static double calculateWithholdingTax(double taxableIncome) {
-        double withholdingTax = 0;
-
+   private static double calculateWithholdingTax(double taxableIncome) {
+        double withholdingTax = 0; // Start with zero tax
+    
+        // If taxable income is 20,832 or less, no tax is applied
         if (taxableIncome <= 20832) {
             withholdingTax = 0;
-        } else if (taxableIncome > 20833 && taxableIncome <= 33333) {
+        } 
+        // If income is between 20,833 and 33,333, tax is 20% of the amount over 20,833
+        else if (taxableIncome > 20833 && taxableIncome <= 33333) {
             withholdingTax = (taxableIncome - 20833) * 0.20;
-        } else if (taxableIncome > 33333 && taxableIncome <= 66667) {
+        } 
+        // If income is between 33,333 and 66,667, tax is 2,500 plus 25% of the amount over 33,333
+        else if (taxableIncome > 33333 && taxableIncome <= 66667) {
             withholdingTax = 2500 + (taxableIncome - 33333) * 0.25;
-        } else if (taxableIncome > 66667 && taxableIncome <= 166667) {
+        } 
+        // If income is between 66,667 and 166,667, tax is 10,833 plus 30% of the amount over 66,667
+        else if (taxableIncome > 66667 && taxableIncome <= 166667) {
             withholdingTax = 10833 + (taxableIncome - 66667) * 0.30;
-        } else if (taxableIncome > 166667 && taxableIncome <= 666667) {
+        } 
+        // If income is between 166,667 and 666,667, tax is 40,833.33 plus 32% of the amount over 166,667
+        else if (taxableIncome > 166667 && taxableIncome <= 666667) {
             withholdingTax = 40833.33 + (taxableIncome - 166667) * 0.32;
-        } else if (taxableIncome > 666667) {
+        } 
+        // If income is more than 666,667, tax is 200,833.33 plus 35% of the amount over 666,667
+        else if (taxableIncome > 666667) {
             withholdingTax = 200833.33 + (taxableIncome - 666667) * 0.35;
         }
-
-        return withholdingTax;
+        return withholdingTax; // Return the calculated tax
     }
 
     /**
@@ -388,13 +398,13 @@ public class MotorPHPayrollSystem {
                 return "";
         }
     }
-
     /**
      * Generates weekly date ranges for the specified month.
      *
      * @param month The month for which to generate date ranges.
      * @return A list of weekly date ranges.
      */
+    
     private static List<String[]> getDateRangeForMonth(String month) {
         LocalDate startDate = LocalDate.of(2024, 6, 3); // First working day of June
         LocalDate endDate = LocalDate.of(2024, 12, 31); // Last working day of the year
