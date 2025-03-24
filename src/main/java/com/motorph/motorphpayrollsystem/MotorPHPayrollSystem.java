@@ -22,7 +22,7 @@ public class MotorPHPayrollSystem {
     	Scanner scanner = new Scanner(System.in);
 
     	System.out.print("Enter Employee Number: ");
-    	int employeeNumber = scanner.nextInt();
+    	int empNum = scanner.nextInt();
     	scanner.nextLine();
 
     	String month;
@@ -32,10 +32,10 @@ public class MotorPHPayrollSystem {
     	} while (getDateRangeForMonth(month).isEmpty());
 
     	String filePath = "src/MotorPH_Employee_Data.xlsx";
-    	displayEmployeePayroll(filePath, employeeNumber, month);
+    	displayEmployeePayroll(filePath, empNum, month);
 	}
 
-	public static void displayEmployeePayroll(String filePath, int employeeNumber, String month) {
+	public static void displayEmployeePayroll(String filePath, int empNum, String month) {
     	try (FileInputStream fis = new FileInputStream(new File(filePath));
          	Workbook workbook = new XSSFWorkbook(fis)) {
 
@@ -47,25 +47,25 @@ public class MotorPHPayrollSystem {
             	return;
         	}
 
-        	EmployeeDetails employeeDetails = getEmployeeDetails(employeeSheet, employeeNumber);
+        	EmployeeDetails employeeDetails = getEmployeeDetails(employeeSheet, empNum);
         	if (employeeDetails == null) {
-            	System.out.println("Error: Employee Number " + employeeNumber + " not found.");
+            	System.out.println("Error: Employee Number " + empNum + " not found.");
             	return;
         	}
 
         	displayEmployeeHeader(employeeDetails, month);
-        	double monthlySalary = calculateMonthlySalary(attendanceSheet, employeeNumber, employeeDetails.getHourlyRate(), month);
+        	double monthlySalary = calculateMonthlySalary(attendanceSheet, empNum, employeeDetails.getHourlyRate(), month);
         	calculateDeductions(monthlySalary, employeeDetails.getMonthlyBenefits());
     	} catch (IOException e) {
         	System.out.println("Error reading file: " + e.getMessage());
     	}
 	}
 
-	private static EmployeeDetails getEmployeeDetails(Sheet employeeSheet, int employeeNumber) {
+	private static EmployeeDetails getEmployeeDetails(Sheet employeeSheet, int empNum) {
     	for (Row row : employeeSheet) {
         	Cell employeeCell = row.getCell(0);
 
-        	if (employeeCell != null && getCellValueAsString(employeeCell).trim().equals(String.valueOf(employeeNumber).trim())) {
+        	if (employeeCell != null && getCellValueAsString(employeeCell).trim().equals(String.valueOf(empNum).trim())) {
             	String firstName = getCellValueAsString(row.getCell(2));
             	String lastName = getCellValueAsString(row.getCell(1));
             	String birthday = row.getCell(3).getLocalDateTimeCellValue().toLocalDate().format(DateTimeFormatter.ofPattern("MM/dd/yyyy"));
@@ -77,7 +77,7 @@ public class MotorPHPayrollSystem {
             	double clothingAllowance = row.getCell(16) != null ? row.getCell(16).getNumericCellValue() : 0;
             	double monthlyBenefits = riceSubsidy + phoneAllowance + clothingAllowance;
 
-            	return new EmployeeDetails(employeeNumber, firstName, lastName, birthday, hourlyRate, monthlyBenefits);
+            	return new EmployeeDetails(empNum, firstName, lastName, birthday, hourlyRate, monthlyBenefits);
         	}
     	}
     	return null;
@@ -93,7 +93,7 @@ public class MotorPHPayrollSystem {
     	System.out.println("---------------------------------------");
 	}
 
-	private static double calculateMonthlySalary(Sheet attendanceSheet, int employeeNumber, double hourlyRate, String month) {
+	private static double calculateMonthlySalary(Sheet attendanceSheet, int empNum, double hourlyRate, String month) {
     	double totalMonthlyPay = 0;
     	// Overtime is calculated at 25% higher than regular rate
     	double overtimeRate = hourlyRate * 1.25;
@@ -120,7 +120,7 @@ public class MotorPHPayrollSystem {
             	int currentEmployeeNumber = (int) row.getCell(0).getNumericCellValue();
             	LocalDate date = row.getCell(3).getLocalDateTimeCellValue().toLocalDate();
 
-            	if (currentEmployeeNumber == employeeNumber && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
+            	if (currentEmployeeNumber == empNum && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
                 	String logInTime = getCellValueAsString(row.getCell(4));
                 	String logOutTime = getCellValueAsString(row.getCell(5));
 
@@ -297,15 +297,15 @@ public class MotorPHPayrollSystem {
 	}
 
 	private static class EmployeeDetails {
-    	private final int employeeNumber;
+    	private final int empNum;
     	private final String firstName;
     	private final String lastName;
     	private final String birthday;
     	private final double hourlyRate;
     	private final double monthlyBenefits;
 
-    	public EmployeeDetails(int employeeNumber, String firstName, String lastName, String birthday, double hourlyRate, double monthlyBenefits) {
-        	this.employeeNumber = employeeNumber;
+    	public EmployeeDetails(int empNum, String firstName, String lastName, String birthday, double hourlyRate, double monthlyBenefits) {
+        	this.empNum = empNum;
         	this.firstName = firstName;
         	this.lastName = lastName;
         	this.birthday = birthday;
@@ -313,7 +313,7 @@ public class MotorPHPayrollSystem {
         	this.monthlyBenefits = monthlyBenefits;
     	}
 
-    	public int getEmployeeNumber() { return employeeNumber; }
+    	public int getEmployeeNumber() { return empNum; }
     	public String getFirstName() { return firstName; }
     	public String getLastName() { return lastName; }
     	public String getBirthday() { return birthday; }
