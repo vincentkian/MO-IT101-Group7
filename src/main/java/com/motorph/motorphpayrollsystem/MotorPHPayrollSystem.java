@@ -16,30 +16,54 @@ import java.time.temporal.WeekFields;
 import java.util.*;
 import java.util.logging.*;
 
-public class MotorPHPayrollSystem {
+/**
+ * The MotorPH Payroll System is a Java-based program for computing payroll.
+ * It processes employee details, calculates salary, applies deductions, and generate net pay.
+ */
 
+public class MotorPHPayrollSystem {
+    // System logger for tracking operations and errors
     private static final Logger logger = Logger.getLogger(MotorPHPayrollSystem.class.getName());
+    
+    // Standard time format for parsing and displaying time values (24-hour format)
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    
+    // Standard date format for all date processing
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
-    // Configuration constants
+    // BUSINESS RULES AND CONSTANTS
+    
+    // Overtime premium rate (25% of base hourly rate)
     private static final double OVERTIME_RATE_MULTIPLIER = 0.25;
-    private static final LocalTime WORK_START = LocalTime.of(8, 0);
-    private static final LocalTime WORK_END = LocalTime.of(17, 0);
-    private static final LocalTime LUNCH_START = LocalTime.of(12, 0);
+    
+    // Standard work schedule configuration
+    private static final LocalTime WORK_START = LocalTime.of(8, 0); // Workday starts at 8:00 AM
+    private static final LocalTime WORK_END = LocalTime.of(17, 0);  // Workday ends at 5:00 PM
+    private static final LocalTime LUNCH_START = LocalTime.of(12, 0); // Lunch break 12:00 PM - 1:00 PM
     private static final LocalTime LUNCH_END = LocalTime.of(13, 0);
+    
+    // Valid month names for input validation
     private static final List<String> VALID_MONTHS = Arrays.asList(
             "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
             "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER");
 
+    /**
+     * Main entry point for the payroll system that:
+     * 1. Initializes system components
+     * 2. Collects employee number and payroll month
+     * 3. Retrieves employee data
+     * 4. Processes payroll calculations
+     * 5. Displays complete payroll report
+     */
     public static void main(String[] args) {
         try {
+            // Initialize system logging configuration
             LoggerSetup.configureLogger();
             logger.info("Starting MotorPH Payroll System");
 
             Scanner scanner = new Scanner(System.in);
 
-            // Employee number validation
+            // Collect and validate employee number input
             System.out.print("Enter Employee Number: ");
             int employeeNumber;
             try {
@@ -49,28 +73,36 @@ public class MotorPHPayrollSystem {
                 return;
             }
 
-            // Define file path for employee data
+            // Path to employee data Excel file
             String filePath = "src/MotorPH_Employee_Data.xlsx";
 
-            // First validate if employee exists
+            // Retrieve employee details from database
             EmployeeDetails employeeDetails = getEmployeeDetails(filePath, employeeNumber);
             if (employeeDetails == null) {
                 System.out.println("Error: Employee Number " + employeeNumber + " not found.");
                 return;
             }
 
-            // Only ask for month if employee is valid
+            // Collect and validate payroll month input
             String month = getValidMonth(scanner);
 
-            // Display payroll details
+            // Process and display payroll information
             displayEmployeePayroll(filePath, employeeNumber, month);
 
         } catch (Exception e) {
+            // Handle system errors gracefully
             logger.log(Level.SEVERE, "Fatal error in application", e);
             System.err.println("A fatal error occurred. Please check the logs.");
         }
     }
 
+    /**
+     * Represents a work week range containing:
+     * - ISO week number
+     * - Start date (Monday)
+     * - End date (Sunday)
+     * Used to organize payroll calculations by weekly periods
+     */
     private static class WeekRange {
         private final int weekNumber;
         private final String startDate;
@@ -87,9 +119,14 @@ public class MotorPHPayrollSystem {
         public String getEndDate() { return endDate; }
     }
 
+    /**
+     * Generates all work week ranges for the payroll year
+     * starting from June 3, 2024 to December 31, 2024
+     * with proper ISO week numbering and date formatting
+     */
     private static List<WeekRange> getWeeklyRangesForYear() {
-        LocalDate startDate = LocalDate.of(2024, 6, 3); // First working day of June
-        LocalDate endDate = LocalDate.of(2024, 12, 31); // Last working day of the year
+        LocalDate startDate = LocalDate.of(2024, 6, 3);
+        LocalDate endDate = LocalDate.of(2024, 12, 31);
         List<WeekRange> weeklyRanges = new ArrayList<>();
 
         LocalDate weekStart = startDate;
@@ -112,6 +149,10 @@ public class MotorPHPayrollSystem {
         return weeklyRanges;
     }
 
+    /**
+     * Validates that a file path is not null or empty
+     * @throws IllegalArgumentException if path is invalid
+     */
     private static void validateFilePath(String filePath) {
         if (filePath == null || filePath.trim().isEmpty()) {
             String errorMsg = "File path is empty";
@@ -120,6 +161,13 @@ public class MotorPHPayrollSystem {
         }
     }
 
+    /**
+     * Retrieves employee details from Excel database including:
+     * - Personal information
+     * - Compensation rates
+     * - Benefit allowances
+     * @return EmployeeDetails object or null if not found
+     */
     private static EmployeeDetails getEmployeeDetails(String filePath, int employeeNumber) {
         validateFilePath(filePath);
 
@@ -178,6 +226,37 @@ public class MotorPHPayrollSystem {
         }
     }
 
+    /**
+     * Converts Excel cell values to consistent string format
+     * handling all cell types (string, numeric, boolean, formula)
+     */
+    private static String getCellValueAsString(Cell cell) {
+        if (cell == null) {
+            return "";
+        }
+
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue();
+            case NUMERIC:
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    return cell.getLocalDateTimeCellValue().toLocalTime().format(TIME_FORMATTER);
+                } else {
+                    return String.valueOf((long) cell.getNumericCellValue());
+                }
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                return cell.getCellFormula();
+            default:
+                return "";
+        }
+    }
+
+    /**
+     * Prompts user for month and validates against valid months
+     * @return Valid month name in uppercase
+     */
     private static String getValidMonth(Scanner scanner) {
         String month;
         do {
@@ -190,6 +269,14 @@ public class MotorPHPayrollSystem {
         return month;
     }
 
+    /**
+     * Main payroll processing function that:
+     * 1. Validates input files
+     * 2. Retrieves employee data
+     * 3. Calculates monthly salary from attendance
+     * 4. Computes deductions
+     * 5. Displays complete payroll report
+     */
     public static void displayEmployeePayroll(String filePath, int employeeNumber, String month) {
         validateFilePath(filePath);
 
@@ -222,7 +309,7 @@ public class MotorPHPayrollSystem {
 
             double monthlySalary = calculateMonthlySalary(attendanceSheet, employeeNumber, employeeDetails.getHourlyRate(), month);
             
-            // Display Gross Salary before deductions
+            // Display gross salary before deductions
             DecimalFormat df = new DecimalFormat("#,##0.00");
             System.out.println("Gross Salary: Php " + df.format(monthlySalary));
             System.out.println("---------------------------------------");
@@ -236,6 +323,10 @@ public class MotorPHPayrollSystem {
         }
     }
 
+    /**
+     * Validates that required Excel worksheets exist
+     * @throws IllegalArgumentException if sheets are missing
+     */
     private static void validateSheets(Sheet employeeSheet, Sheet attendanceSheet) {
         if (employeeSheet == null) {
             String errorMsg = "Employee Details sheet not found";
@@ -249,6 +340,9 @@ public class MotorPHPayrollSystem {
         }
     }
 
+    /**
+     * Retrieves employee details from specified worksheet
+     */
     private static EmployeeDetails getEmployeeDetails(Sheet employeeSheet, int employeeNumber) {
         boolean foundHeader = false;
         for (Row row : employeeSheet) {
@@ -285,6 +379,9 @@ public class MotorPHPayrollSystem {
         return null;
     }
 
+    /**
+     * Displays employee information header section
+     */
     private static void displayEmployeeHeader(EmployeeDetails employeeDetails, String month) {
         System.out.println("========Employee Payroll Summary=======");
         System.out.println("Employee Number: " + employeeDetails.getEmployeeNumber());
@@ -295,6 +392,10 @@ public class MotorPHPayrollSystem {
         System.out.println("---------------------------------------");
     }
 
+    /**
+     * Calculates monthly salary by processing attendance records week by week
+     * including regular hours, overtime, and late time calculations
+     */
     private static double calculateMonthlySalary(Sheet attendanceSheet, int employeeNumber, double hourlyRate, String month) {
         double totalMonthlyPay = 0;
         double overtimeRate = hourlyRate * OVERTIME_RATE_MULTIPLIER;
@@ -355,6 +456,12 @@ public class MotorPHPayrollSystem {
         return totalMonthlyPay;
     }
 
+    /**
+     * Processes a single day's attendance record to calculate:
+     * - Regular work minutes (excluding lunch)
+     * - Late arrival minutes
+     * - Overtime pay eligibility
+     */
     private static AttendanceResult processAttendanceDay(int employeeNumber, LocalDate date, 
                                                       String logInTime, String logOutTime,
                                                       double hourlyRate, double overtimeRate) {
@@ -393,6 +500,11 @@ public class MotorPHPayrollSystem {
         return result;
     }
 
+    /**
+     * Validates time range for a work day including:
+     * - Logout cannot be before login
+     * - Suspicious early/late times
+     */
     private static void validateTimeRange(int employeeNumber, LocalDate date, String logInTime, String logOutTime,
                                         LocalTime logIn, LocalTime logOut) {
         if (logOut.isBefore(logIn)) {
@@ -415,6 +527,12 @@ public class MotorPHPayrollSystem {
         }
     }
 
+    /**
+     * Displays weekly payroll summary including:
+     * - Regular hours worked
+     * - Late time accumulated
+     * - Pay breakdown (regular and overtime)
+     */
     private static void displayWeeklySummary(int regularMinutes, int lateMinutes,
                                           double weeklyRegularPay, double weeklyOvertimePay,
                                           double weeklySalary) {
@@ -428,6 +546,14 @@ public class MotorPHPayrollSystem {
         System.out.println("-------------------------");
     }
 
+    /**
+     * Calculates and displays all payroll deductions including:
+     * - SSS contributions
+     * - PhilHealth payments
+     * - Pag-IBIG contributions
+     * - Withholding tax
+     * - Net pay after deductions
+     */
     private static void calculateDeductions(double monthlySalary, double monthlyBenefits) {
         DecimalFormat df = new DecimalFormat("#,##0.00");
 
@@ -480,6 +606,10 @@ public class MotorPHPayrollSystem {
         System.out.println("Net Pay: Php " + df.format(netPay));
     }
 
+    /**
+     * Calculates SSS contribution based on monthly salary using
+     * the official SSS contribution table with tiered rates
+     */
     private static double calculateSSS(double monthlySalary) {
         NavigableMap<Double, Double> sssTable = new TreeMap<>();
         double[] salaryBrackets = {
@@ -518,6 +648,10 @@ public class MotorPHPayrollSystem {
         return sssTable.get(key);
     }
 
+    /**
+     * Calculates withholding tax based on BIR tax tables using
+     * progressive tax rates for different income brackets
+     */
     private static double calculateWithholdingTax(double taxableIncome) {
         double withholdingTax = 0;
 
@@ -538,6 +672,10 @@ public class MotorPHPayrollSystem {
         return withholdingTax;
     }
 
+    /**
+     * Parses time string into LocalTime object using standard format
+     * @throws IllegalArgumentException for invalid time formats
+     */
     private static LocalTime parseTime(String timeStr) throws IllegalArgumentException {
         if (timeStr == null || timeStr.trim().isEmpty()) {
             throw new IllegalArgumentException("Time string is empty");
@@ -549,29 +687,12 @@ public class MotorPHPayrollSystem {
         }
     }
 
-    private static String getCellValueAsString(Cell cell) {
-        if (cell == null) {
-            return "";
-        }
-
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getLocalDateTimeCellValue().toLocalTime().format(TIME_FORMATTER);
-                } else {
-                    return String.valueOf((long) cell.getNumericCellValue());
-                }
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                return cell.getCellFormula();
-            default:
-                return "";
-        }
-    }
-
+    /**
+     * Container for employee details including:
+     * - Identification information
+     * - Compensation rates
+     * - Benefit allowances
+     */
     private static class EmployeeDetails {
         private final int employeeNumber;
         private final String firstName;
@@ -614,27 +735,41 @@ public class MotorPHPayrollSystem {
         }
     }
 
+    /**
+     * Container for daily attendance calculation results including:
+     * - Regular work minutes
+     * - Late arrival minutes
+     * - Overtime pay earned
+     */
     private static class AttendanceResult {
         int regularMinutes = 0;
         int lateMinutes = 0;
         double overtimePay = 0;
     }
 
+    /**
+     * Configures system logging to write to both file and console
+     * with consistent formatting and log level settings
+     */
     private static class LoggerSetup {
         public static void configureLogger() throws IOException {
             Logger logger = Logger.getLogger("");
+            // Remove default handlers
             for (Handler handler : logger.getHandlers()) {
                 logger.removeHandler(handler);
             }
 
+            // Configure file logging
             FileHandler fileHandler = new FileHandler("payroll_system.log", true);
             fileHandler.setFormatter(new SimpleFormatter());
             logger.addHandler(fileHandler);
 
+            // Configure console logging
             ConsoleHandler consoleHandler = new ConsoleHandler();
             consoleHandler.setFormatter(new SimpleFormatter());
             logger.addHandler(consoleHandler);
 
+            // Set logging level
             logger.setLevel(Level.INFO);
         }
     }
