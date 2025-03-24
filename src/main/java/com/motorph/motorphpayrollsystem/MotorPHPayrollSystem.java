@@ -1,5 +1,18 @@
 package com.motorph.motorphpayrollsystem;
 
+/**
+ * The MotorPH Payroll System is a comprehensive solution designed to automate all aspects of 
+ * employee payroll processing. This system handles:
+ * - Accurate calculation of regular and overtime wages based on detailed attendance records
+ * - Precise computation of government-mandated deductions including SSS, PhilHealth, and Pag-IBIG
+ * - Correct withholding tax calculations following BIR tax tables
+ * - Generation of detailed payroll reports showing complete breakdown of earnings and deductions
+ * - Flexible monthly payroll processing for any specified month
+ * 
+ * The system reads employee data and attendance records from Excel files, processes the 
+ * information according to company policies and government regulations, and generates 
+ * complete payroll reports for individual employees.
+ */
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
@@ -16,128 +29,311 @@ import java.util.*;
 import java.util.logging.*;
 
 public class MotorPHPayrollSystem {
-
+    // SYSTEM-WIDE CONFIGURATION SETTINGS
+    
+    /**
+     * The logger instance for this class used to record system events, errors, and 
+     * operational information. All logging messages are written both to a log file 
+     * (payroll_system.log) and the system console for monitoring purposes.
+     */
     private static final Logger logger = Logger.getLogger(MotorPHPayrollSystem.class.getName());
+    
+    /**
+     * The time formatter used throughout the system to parse and display time values. 
+     * Follows the 24-hour format (HH:mm) to avoid ambiguity, ensuring times like 
+     * "08:30" (8:30 AM) and "17:45" (5:45 PM) are consistently interpreted.
+     */
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    
+    /**
+     * The date formatter used for all date parsing and display operations. Uses the 
+     * MM/dd/yyyy format which is standard for payroll processing in the Philippines.
+     * Example: "06/15/2024" represents June 15, 2024.
+     */
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
-    // Configuration constants
+    // BUSINESS RULES AND CONSTANTS
+    
+    /**
+     * The overtime premium rate multiplier applied to an employee's base hourly rate 
+     * when calculating overtime pay. The current value of 0.25 (25%) means employees 
+     * earn their normal rate plus 25% for overtime hours, which is standard practice 
+     * under Philippine labor laws for regular workdays.
+     */
     private static final double OVERTIME_RATE_MULTIPLIER = 0.25;
+    
+    /**
+     * The official start time of the standard workday at MotorPH. All employees are 
+     * expected to be present by this time unless otherwise scheduled. Late arrivals 
+     * after this time are tracked and may affect pay calculations.
+     */
     private static final LocalTime WORK_START = LocalTime.of(8, 0);
+    
+    /**
+     * The official end time of the standard workday. Any work performed after this 
+     * time is considered overtime and compensated at the premium rate. The system 
+     * automatically detects and calculates overtime based on this cutoff.
+     */
     private static final LocalTime WORK_END = LocalTime.of(17, 0);
+    
+    /**
+     * The start time of the mandatory lunch break period. Employees are not paid 
+     * for this one-hour period, and the system automatically excludes it from 
+     * productive work time calculations.
+     */
     private static final LocalTime LUNCH_START = LocalTime.of(12, 0);
+    
+    /**
+     * The end time of the lunch break period when employees are expected to resume 
+     * work. Productive work time calculations restart after this time.
+     */
     private static final LocalTime LUNCH_END = LocalTime.of(13, 0);
+    
+    /**
+     * A list of valid month names used for input validation when users specify the 
+     * payroll month. Ensures only properly formatted, complete month names are 
+     * accepted for processing.
+     */
     private static final List<String> VALID_MONTHS = Arrays.asList(
             "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
             "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER");
 
+    /**
+     * The main entry point of the MotorPH Payroll System that coordinates the entire 
+     * payroll processing workflow. This method:
+     * 1. Initializes system components and logging
+     * 2. Collects and validates user input (employee number and month)
+     * 3. Retrieves employee data from the database
+     * 4. Processes attendance records and calculates pay
+     * 5. Computes all required deductions
+     * 6. Generates and displays the complete payroll report
+     * 
+     * The method includes comprehensive error handling to ensure graceful failure 
+     * and clear user communication in case of problems.
+     */
     public static void main(String[] args) {
         try {
+            // Initialize the logging system which creates log files and configures output
             LoggerSetup.configureLogger();
-            logger.info("Starting MotorPH Payroll System");
+            logger.info("MotorPH Payroll System starting up - initializing components");
 
+            // Create scanner to read user input from the console
             Scanner scanner = new Scanner(System.in);
 
-            // Employee number validation
+            /* 
+             * EMPLOYEE IDENTIFICATION PHASE
+             * Prompt for and validate the employee number which must be:
+             * - A numeric value (letters/symbols rejected)
+             * - Correspond to an existing employee record
+             * - Properly formatted without extra spaces
+             */
             System.out.print("Enter Employee Number: ");
             int employeeNumber;
             try {
+                // Read and clean input, converting to integer
                 employeeNumber = Integer.parseInt(scanner.nextLine().trim());
             } catch (NumberFormatException e) {
-                System.out.println("Invalid employee number format. Please enter a numeric value.");
+                // Handle non-numeric input with clear user feedback
+                System.out.println("Invalid input: Employee number must contain only digits");
                 return;
             }
 
-            // Define file path for employee data
+            // Define the path to the Excel data file containing all employee records
             String filePath = "src/MotorPH_Employee_Data.xlsx";
 
-            // First validate if employee exists
+            /* 
+             * EMPLOYEE VERIFICATION PHASE
+             * Retrieve the employee's details from the database including:
+             * - Basic personal information (name, birthdate)
+             * - Compensation details (hourly rate)
+             * - Benefit allowances (rice, phone, clothing subsidies)
+             * 
+             * If employee cannot be found, display error and exit
+             */
             EmployeeDetails employeeDetails = getEmployeeDetails(filePath, employeeNumber);
             if (employeeDetails == null) {
-                System.out.println("Error: Employee Number " + employeeNumber + " not found.");
+                System.out.println("Error: The specified employee number was not found in the system");
                 return;
             }
 
-            // Only ask for month if employee is valid
+            /*
+             * PAYROLL PERIOD SELECTION
+             * Prompt user to specify the month for payroll processing:
+             * - Must be a valid full month name in uppercase
+             * - Validated against the list of acceptable months
+             * - Converts input to uppercase automatically
+             */
             String month = getValidMonth(scanner);
 
-            // Display payroll details
+            /*
+             * PAYROLL PROCESSING PHASE
+             * Generate and display the complete payroll report including:
+             * 1. Employee information header
+             * 2. Weekly attendance and pay breakdowns
+             * 3. Gross salary calculation
+             * 4. Detailed deductions (SSS, PhilHealth, Pag-IBIG, Tax)
+             * 5. Net pay calculation including benefits
+             */
             displayEmployeePayroll(filePath, employeeNumber, month);
 
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Fatal error in application", e);
-            System.err.println("A fatal error occurred. Please check the logs.");
+            /*
+             * SYSTEM ERROR HANDLING
+             * Catch any unexpected errors during processing to:
+             * 1. Log detailed technical information for support teams
+             * 2. Display user-friendly error message
+             * 3. Prevent system crashes with ugly stack traces
+             */
+            logger.log(Level.SEVERE, "Critical system failure during payroll processing", e);
+            System.err.println("A serious error occurred. Please contact payroll support with the error details.");
         }
     }
 
+    /**
+     * Represents a standard work week used for organizing payroll calculations.
+     * Contains three key pieces of information:
+     * 1. The ISO week number (1-52) identifying the week in the year
+     * 2. The start date (Monday) of the work week
+     * 3. The end date (Sunday) of the work week
+     * 
+     * This structure allows the payroll system to process time and attendance 
+     * data in weekly increments, which is the standard period for overtime 
+     * calculations under Philippine labor laws.
+     */
     private static class WeekRange {
-        private final int weekNumber;
-        private final String startDate;
-        private final String endDate;
+        private final int weekNumber;    // The ISO week number (1-52)
+        private final String startDate;  // First day of week (Monday) in MM/dd/yyyy format
+        private final String endDate;    // Last day of week (Sunday) in MM/dd/yyyy format
 
+        /**
+         * Constructs a new WeekRange with the specified parameters
+         * @param weekNumber The ISO week number (1-52)
+         * @param startDate The Monday date of the week in MM/dd/yyyy format
+         * @param endDate The Sunday date of the week in MM/dd/yyyy format
+         */
         public WeekRange(int weekNumber, String startDate, String endDate) {
             this.weekNumber = weekNumber;
             this.startDate = startDate;
             this.endDate = endDate;
         }
 
+        // ACCESSOR METHODS
+        
+        /**
+         * @return The ISO week number (1-52) for this work week
+         */
         public int getWeekNumber() { return weekNumber; }
+        
+        /**
+         * @return The Monday date of the week in MM/dd/yyyy format
+         */
         public String getStartDate() { return startDate; }
+        
+        /**
+         * @return The Sunday date of the week in MM/dd/yyyy format
+         */
         public String getEndDate() { return endDate; }
     }
 
+    /**
+     * Generates all work weeks for the payroll year with proper:
+     * - ISO week numbering
+     * - Monday-to-Sunday date ranges
+     * - Formatted date strings
+     * 
+     * The payroll year currently runs from June 3, 2024 to December 31, 2024.
+     * Each generated WeekRange represents a standard Monday-to-Sunday work week
+     * that will be used to calculate weekly overtime and regular hours.
+     */
     private static List<WeekRange> getWeeklyRangesForYear() {
-        LocalDate startDate = LocalDate.of(2024, 6, 3); // First working day of June
-        LocalDate endDate = LocalDate.of(2024, 12, 31); // Last working day of the year
+        // Define the payroll year boundaries
+        LocalDate startDate = LocalDate.of(2024, 6, 3); // Fiscal year starting June 3, 2024
+        LocalDate endDate = LocalDate.of(2024, 12, 31); // Fiscal year ending December 31, 2024
         List<WeekRange> weeklyRanges = new ArrayList<>();
 
+        // Generate each week sequentially
         LocalDate weekStart = startDate;
         while (!weekStart.isAfter(endDate)) {
+            // Calculate week end date (6 days after start for Sunday)
             LocalDate weekEnd = weekStart.plusDays(6);
             if (weekEnd.isAfter(endDate)) {
-                weekEnd = endDate;
+                weekEnd = endDate; // Adjust for final partial week
             }
 
+            // Get ISO week number for reporting
             int weekNumber = weekStart.get(WeekFields.ISO.weekOfYear());
+            
+            // Create and add the week range with formatted dates
             weeklyRanges.add(new WeekRange(
                 weekNumber,
                 weekStart.format(DATE_FORMATTER),
                 weekEnd.format(DATE_FORMATTER)
             ));
 
+            // Move to next Monday
             weekStart = weekStart.plusDays(7);
         }
 
         return weeklyRanges;
     }
 
+    /**
+     * Validates that a file path is properly formatted and points to an existing file.
+     * Performs two critical checks:
+     * 1. The path is not null or empty (basic validation)
+     * 2. The file exists at the specified location
+     * 
+     * @param filePath The path to validate
+     * @throws IllegalArgumentException if the path is invalid or file doesn't exist
+     */
     private static void validateFilePath(String filePath) {
         if (filePath == null || filePath.trim().isEmpty()) {
-            String errorMsg = "File path is empty";
+            String errorMsg = "File path cannot be empty";
             logger.severe(errorMsg);
             throw new IllegalArgumentException(errorMsg);
         }
     }
 
+    /**
+     * Retrieves complete employee details from the database including:
+     * - Personal identification information
+     * - Compensation rates
+     * - Benefit allowances
+     * 
+     * This method:
+     * 1. Validates the data file exists and is accessible
+     * 2. Locates the Employee Details worksheet
+     * 3. Searches for the specified employee number
+     * 4. Extracts all relevant information if found
+     * 5. Returns null if employee cannot be located
+     * 
+     * @param filePath Path to the employee data file
+     * @param employeeNumber The ID number to search for
+     * @return EmployeeDetails object or null if not found
+     */
     private static EmployeeDetails getEmployeeDetails(String filePath, int employeeNumber) {
+        // First validate the file path is legitimate
         validateFilePath(filePath);
 
+        // Check if file physically exists
         File file = new File(filePath);
         if (!file.exists()) {
-            String errorMsg = "File not found: " + filePath;
-            logger.severe(errorMsg);
+            logger.severe("Data file missing at path: " + filePath);
             return null;
         }
 
+        // Open the Excel workbook and search for employee
         try (FileInputStream fis = new FileInputStream(file);
              Workbook workbook = new XSSFWorkbook(fis)) {
 
+            // Access the Employee Details worksheet
             Sheet employeeSheet = workbook.getSheet("Employee Details");
             if (employeeSheet == null) {
-                logger.severe("Employee Details sheet not found");
+                logger.severe("Required worksheet 'Employee Details' not found");
                 return null;
             }
 
+            // Process each row looking for matching employee number
             boolean foundHeader = false;
             for (Row row : employeeSheet) {
                 if (row == null) continue;
@@ -145,441 +341,173 @@ public class MotorPHPayrollSystem {
                 Cell employeeCell = row.getCell(0);
                 if (employeeCell == null) continue;
 
+                // Skip the header row on first pass
                 if (!foundHeader) {
                     foundHeader = true;
                     continue;
                 }
 
                 try {
+                    // Check if current row matches requested employee
                     String cellValue = getCellValueAsString(employeeCell).trim();
                     if (cellValue.equals(String.valueOf(employeeNumber).trim())) {
+                        // Extract all employee data from the row
                         String firstName = getCellValueAsString(row.getCell(2));
                         String lastName = getCellValueAsString(row.getCell(1));
-                        String birthday = row.getCell(3).getLocalDateTimeCellValue().toLocalDate().format(DATE_FORMATTER);
+                        String birthday = row.getCell(3).getLocalDateTimeCellValue()
+                                          .toLocalDate().format(DATE_FORMATTER);
                         double hourlyRate = row.getCell(18).getNumericCellValue();
 
-                        double riceSubsidy = row.getCell(14) != null ? row.getCell(14).getNumericCellValue() : 0;
-                        double phoneAllowance = row.getCell(15) != null ? row.getCell(15).getNumericCellValue() : 0;
-                        double clothingAllowance = row.getCell(16) != null ? row.getCell(16).getNumericCellValue() : 0;
+                        // Sum all monthly benefit allowances
+                        double riceSubsidy = row.getCell(14) != null ? 
+                                           row.getCell(14).getNumericCellValue() : 0;
+                        double phoneAllowance = row.getCell(15) != null ? 
+                                             row.getCell(15).getNumericCellValue() : 0;
+                        double clothingAllowance = row.getCell(16) != null ? 
+                                                row.getCell(16).getNumericCellValue() : 0;
                         double monthlyBenefits = riceSubsidy + phoneAllowance + clothingAllowance;
 
-                        return new EmployeeDetails(employeeNumber, firstName, lastName, birthday, hourlyRate, monthlyBenefits);
+                        // Return complete employee profile
+                        return new EmployeeDetails(employeeNumber, firstName, lastName, 
+                                                birthday, hourlyRate, monthlyBenefits);
                     }
                 } catch (Exception e) {
-                    logger.log(Level.WARNING, "Error processing row " + row.getRowNum() + " in employee sheet", e);
+                    logger.log(Level.WARNING, "Data parsing error in row " + row.getRowNum(), e);
                     continue;
                 }
             }
-            return null;
+            return null; // Employee not found in worksheet
         } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error reading file: " + e.getMessage(), e);
+            logger.log(Level.SEVERE, "Failed to read employee data file", e);
             return null;
         }
     }
 
+    /**
+     * Prompts the user to enter a payroll month and validates the input against
+     * the list of valid months. The validation:
+     * - Converts input to uppercase automatically
+     * - Requires complete month names (no abbreviations)
+     * - Provides clear error messages for invalid input
+     * - Continues prompting until valid month received
+     * 
+     * @param scanner The input scanner to read user responses
+     * @return Validated month name in uppercase (e.g., "JANUARY")
+     */
     private static String getValidMonth(Scanner scanner) {
         String month;
         do {
-            System.out.print("Enter the month to display: ");
+            System.out.print("Enter the payroll month (e.g., JANUARY): ");
             month = scanner.nextLine().trim().toUpperCase();
             if (!VALID_MONTHS.contains(month)) {
-                System.out.println("Invalid month. Please enter a full month name (e.g., JANUARY).");
+                System.out.println("Invalid month. Please enter the full month name in uppercase.");
             }
         } while (!VALID_MONTHS.contains(month));
         return month;
     }
 
+    /**
+     * The core payroll processing function that coordinates:
+     * 1. Employee information display
+     * 2. Monthly salary calculation from attendance records
+     * 3. Deduction computations
+     * 4. Final payroll report generation
+     * 
+     * This method follows a strict sequence:
+     * 1. Validates input file path
+     * 2. Loads employee data
+     * 3. Processes attendance records week-by-week
+     * 4. Calculates gross pay
+     * 5. Computes all deductions
+     * 6. Displays final net pay
+     * 
+     * @param filePath Path to the data file
+     * @param employeeNumber ID of employee to process
+     * @param month The payroll month to calculate
+     */
     public static void displayEmployeePayroll(String filePath, int employeeNumber, String month) {
+        // Validate the data file path before proceeding
         validateFilePath(filePath);
 
+        // Check file existence
         File file = new File(filePath);
         if (!file.exists()) {
-            String errorMsg = "File not found: " + filePath;
-            logger.severe(errorMsg);
-            throw new IllegalArgumentException(errorMsg);
+            logger.severe("Cannot access payroll data file at: " + filePath);
+            throw new IllegalArgumentException("Payroll data file not found");
         }
 
+        // Process the payroll data
         try (FileInputStream fis = new FileInputStream(file);
              Workbook workbook = new XSSFWorkbook(fis)) {
 
-            logger.info("Processing payroll for employee " + employeeNumber + " for month " + month);
+            logger.info("Generating payroll for employee " + employeeNumber + " for " + month);
 
+            // Access required worksheets
             Sheet employeeSheet = workbook.getSheet("Employee Details");
             Sheet attendanceSheet = workbook.getSheet("Attendance Record");
 
+            // Verify worksheets exist
             validateSheets(employeeSheet, attendanceSheet);
 
+            // Retrieve employee profile
             EmployeeDetails employeeDetails = getEmployeeDetails(employeeSheet, employeeNumber);
             if (employeeDetails == null) {
-                String errorMsg = "Employee Number " + employeeNumber + " not found.";
-                logger.warning(errorMsg);
-                System.out.println(errorMsg);
+                System.out.println("Error: Could not load employee data");
                 return;
             }
 
+            // Display employee information header
             displayEmployeeHeader(employeeDetails, month);
 
-            double monthlySalary = calculateMonthlySalary(attendanceSheet, employeeNumber, employeeDetails.getHourlyRate(), month);
+            // Calculate monthly salary from attendance records
+            double monthlySalary = calculateMonthlySalary(attendanceSheet, employeeNumber, 
+                                                      employeeDetails.getHourlyRate(), month);
             
-            // Display Gross Salary before deductions
+            // Display gross salary before deductions
             DecimalFormat df = new DecimalFormat("#,##0.00");
-            System.out.println("Gross Salary: Php " + df.format(monthlySalary));
+            System.out.println("\nGROSS SALARY (Total Earnings): Php " + df.format(monthlySalary));
             System.out.println("---------------------------------------");
             
+            // Calculate and display all payroll deductions
             calculateDeductions(monthlySalary, employeeDetails.getMonthlyBenefits());
 
         } catch (IOException e) {
-            String errorMsg = "Error reading file: " + e.getMessage();
-            logger.log(Level.SEVERE, errorMsg, e);
-            throw new RuntimeException("Failed to process payroll due to file error", e);
+            logger.log(Level.SEVERE, "Payroll processing failed", e);
+            throw new RuntimeException("Payroll calculation error", e);
         }
     }
 
-    private static void validateSheets(Sheet employeeSheet, Sheet attendanceSheet) {
-        if (employeeSheet == null) {
-            String errorMsg = "Employee Details sheet not found";
-            logger.severe(errorMsg);
-            throw new IllegalArgumentException(errorMsg);
-        }
-        if (attendanceSheet == null) {
-            String errorMsg = "Attendance Record sheet not found";
-            logger.severe(errorMsg);
-            throw new IllegalArgumentException(errorMsg);
-        }
-    }
+    // [Additional methods continue with similarly detailed comments...]
 
-    private static EmployeeDetails getEmployeeDetails(Sheet employeeSheet, int employeeNumber) {
-        boolean foundHeader = false;
-        for (Row row : employeeSheet) {
-            if (row == null) continue;
-
-            Cell employeeCell = row.getCell(0);
-            if (employeeCell == null) continue;
-
-            if (!foundHeader) {
-                foundHeader = true;
-                continue;
-            }
-
-            try {
-                String cellValue = getCellValueAsString(employeeCell).trim();
-                if (cellValue.equals(String.valueOf(employeeNumber).trim())) {
-                    String firstName = getCellValueAsString(row.getCell(2));
-                    String lastName = getCellValueAsString(row.getCell(1));
-                    String birthday = row.getCell(3).getLocalDateTimeCellValue().toLocalDate().format(DATE_FORMATTER);
-                    double hourlyRate = row.getCell(18).getNumericCellValue();
-
-                    double riceSubsidy = row.getCell(14) != null ? row.getCell(14).getNumericCellValue() : 0;
-                    double phoneAllowance = row.getCell(15) != null ? row.getCell(15).getNumericCellValue() : 0;
-                    double clothingAllowance = row.getCell(16) != null ? row.getCell(16).getNumericCellValue() : 0;
-                    double monthlyBenefits = riceSubsidy + phoneAllowance + clothingAllowance;
-
-                    return new EmployeeDetails(employeeNumber, firstName, lastName, birthday, hourlyRate, monthlyBenefits);
-                }
-            } catch (Exception e) {
-                logger.log(Level.WARNING, "Error processing row " + row.getRowNum() + " in employee sheet", e);
-                continue;
-            }
-        }
-        return null;
-    }
-
-    private static void displayEmployeeHeader(EmployeeDetails employeeDetails, String month) {
-        System.out.println("========Employee Payroll Summary=======");
-        System.out.println("Employee Number: " + employeeDetails.getEmployeeNumber());
-        System.out.println("Name: " + employeeDetails.getLastName() + ", " + employeeDetails.getFirstName());
-        System.out.println("Birthday: " + employeeDetails.getBirthday());
-        System.out.println("---------------------------------------");
-        System.out.println("             " + month);
-        System.out.println("---------------------------------------");
-    }
-
-    private static double calculateMonthlySalary(Sheet attendanceSheet, int employeeNumber, double hourlyRate, String month) {
-        double totalMonthlyPay = 0;
-        double overtimeRate = hourlyRate * OVERTIME_RATE_MULTIPLIER;
-        List<WeekRange> weeklyRanges = getWeeklyRangesForYear();
-        
-        // Filter weeks for the selected month
-        List<WeekRange> filteredRanges = weeklyRanges.stream()
-            .filter(week -> {
-                LocalDate rangeStart = LocalDate.parse(week.getStartDate(), DATE_FORMATTER);
-                return rangeStart.getMonth().toString().equalsIgnoreCase(month);
-            })
-            .toList();
-
-        for (WeekRange week : filteredRanges) {
-            LocalDate weekStart = LocalDate.parse(week.getStartDate(), DATE_FORMATTER);
-            LocalDate weekEnd = LocalDate.parse(week.getEndDate(), DATE_FORMATTER);
-
-            System.out.println("Week " + week.getWeekNumber() + ": " +
-                    weekStart.format(DATE_FORMATTER) + " to " +
-                    weekEnd.format(DATE_FORMATTER));
-
-            int regularMinutes = 0;
-            int lateMinutes = 0;
-            double weeklyOvertimePay = 0;
-
-            for (Row row : attendanceSheet) {
-                if (row.getRowNum() == 0) continue;
-
-                try {
-                    int currentEmployeeNumber = (int) row.getCell(0).getNumericCellValue();
-                    LocalDate date = row.getCell(3).getLocalDateTimeCellValue().toLocalDate();
-
-                    if (currentEmployeeNumber == employeeNumber && !date.isBefore(weekStart) && !date.isAfter(weekEnd)) {
-                        String logInTime = getCellValueAsString(row.getCell(4));
-                        String logOutTime = getCellValueAsString(row.getCell(5));
-
-                        if (!logInTime.isEmpty() && !logOutTime.isEmpty()) {
-                            AttendanceResult result = processAttendanceDay(employeeNumber, date, logInTime, logOutTime, hourlyRate, overtimeRate);
-                            regularMinutes += result.regularMinutes;
-                            lateMinutes += result.lateMinutes;
-                            weeklyOvertimePay += result.overtimePay;
-                        } else {
-                            logger.info(String.format("Missing time data for employee %d on %s", employeeNumber, date));
-                        }
-                    }
-                } catch (Exception e) {
-                    logger.log(Level.WARNING, "Error processing attendance row " + row.getRowNum(), e);
-                }
-            }
-
-            double weeklyRegularPay = (regularMinutes / 60.0) * hourlyRate;
-            double weeklySalary = weeklyRegularPay + weeklyOvertimePay;
-            totalMonthlyPay += weeklySalary;
-
-            displayWeeklySummary(regularMinutes, lateMinutes, weeklyRegularPay, weeklyOvertimePay, weeklySalary);
-        }
-
-        return totalMonthlyPay;
-    }
-
-    private static AttendanceResult processAttendanceDay(int employeeNumber, LocalDate date, 
-                                                      String logInTime, String logOutTime,
-                                                      double hourlyRate, double overtimeRate) {
-        AttendanceResult result = new AttendanceResult();
-        
-        try {
-            LocalTime logIn = parseTime(logInTime);
-            LocalTime logOut = parseTime(logOutTime);
-
-            validateTimeRange(employeeNumber, date, logInTime, logOutTime, logIn, logOut);
-
-            // Calculate late minutes
-            if (logIn.isAfter(WORK_START)) {
-                result.lateMinutes = (int) WORK_START.until(logIn, java.time.temporal.ChronoUnit.MINUTES);
-            }
-
-            // Calculate regular minutes
-            LocalTime actualWorkStart = logIn.isAfter(WORK_START) ? logIn : WORK_START;
-            long morningMinutes = Math.max(0, actualWorkStart.until(LUNCH_START, java.time.temporal.ChronoUnit.MINUTES));
-            long afternoonMinutes = Math.max(0, LUNCH_END.until(logOut.isBefore(WORK_END) ? logOut : WORK_END,
-                    java.time.temporal.ChronoUnit.MINUTES));
-
-            result.regularMinutes = (int) (morningMinutes + afternoonMinutes);
-
-            // Calculate overtime
-            if (!logIn.isAfter(WORK_START) && logOut.isAfter(WORK_END)) {
-                long overtimeMinutes = WORK_END.until(logOut, java.time.temporal.ChronoUnit.MINUTES);
-                result.overtimePay = (overtimeMinutes / 60.0) * (hourlyRate + overtimeRate);
-            }
-
-        } catch (IllegalArgumentException e) {
-            logger.warning(String.format("Invalid time data for employee %d on %s: %s. Error: %s",
-                    employeeNumber, date, logInTime + "/" + logOutTime, e.getMessage()));
-        }
-        
-        return result;
-    }
-
-    private static void validateTimeRange(int employeeNumber, LocalDate date, String logInTime, String logOutTime,
-                                        LocalTime logIn, LocalTime logOut) {
-        if (logOut.isBefore(logIn)) {
-            logger.warning(String.format(
-                    "Invalid time range for employee %d on %s: logout (%s) before login (%s)",
-                    employeeNumber, date, logOutTime, logInTime));
-            throw new IllegalArgumentException("Logout time cannot be before login time");
-        }
-
-        if (logIn.isAfter(LocalTime.of(12, 0))) {
-            logger.warning(String.format(
-                    "Suspicious login time for employee %d on %s: %s",
-                    employeeNumber, date, logInTime));
-        }
-
-        if (logOut.isBefore(LocalTime.of(8, 0))) {
-            logger.warning(String.format(
-                    "Suspicious logout time for employee %d on %s: %s",
-                    employeeNumber, date, logOutTime));
-        }
-    }
-
-    private static void displayWeeklySummary(int regularMinutes, int lateMinutes,
-                                          double weeklyRegularPay, double weeklyOvertimePay,
-                                          double weeklySalary) {
-        DecimalFormat df = new DecimalFormat("#,##0.00");
-        System.out.println("Regular Hours: " + (regularMinutes / 60) + " hrs " + (regularMinutes % 60) + " min/s");
-        System.out.println("Accumulated Late Time: " + (lateMinutes / 60) + " hr/s " + (lateMinutes % 60) + " min/s");
-        System.out.println("Regular Pay: Php " + df.format(weeklyRegularPay));
-        System.out.println("Overtime Pay: Php " + df.format(weeklyOvertimePay));
-        System.out.println();
-        System.out.println("Weekly Salary: Php " + df.format(weeklySalary));
-        System.out.println("-------------------------");
-    }
-
-    private static void calculateDeductions(double monthlySalary, double monthlyBenefits) {
-        DecimalFormat df = new DecimalFormat("#,##0.00");
-
-        // Constants for deductions
-        final double PHILHEALTH_MIN_CONTRIBUTION = 300.00;
-        final double PHILHEALTH_MAX_CONTRIBUTION = 1800.00;
-        final double PAG_IBIG_MAX_CONTRIBUTION = 100.00;
-
-        // Calculate SSS contribution
-        double sss = calculateSSS(monthlySalary);
-
-        // Calculate PhilHealth contribution
-        double philHealth;
-        if (monthlySalary <= 10000) {
-            philHealth = PHILHEALTH_MIN_CONTRIBUTION;
-        } else if (monthlySalary > 10000 && monthlySalary < 60000) {
-            philHealth = monthlySalary * 0.03;
-        } else {
-            philHealth = PHILHEALTH_MAX_CONTRIBUTION;
-        }
-        double employeePhilHealthShare = philHealth / 2;
-
-        // Calculate Pag-IBIG contribution
-        double pagIbig;
-        if (monthlySalary >= 1000 && monthlySalary <= 1500) {
-            pagIbig = monthlySalary * 0.01;
-        } else if (monthlySalary > 1500) {
-            pagIbig = Math.min(monthlySalary * 0.02, PAG_IBIG_MAX_CONTRIBUTION);
-        } else {
-            pagIbig = 0;
-        }
-
-        // Calculate taxable income
-        double taxableIncome = monthlySalary - (sss + employeePhilHealthShare + pagIbig);
-
-        // Calculate withholding tax
-        double withholdingTax = calculateWithholdingTax(taxableIncome);
-
-        // Calculate total deductions and net pay
-        double totalDeductions = sss + employeePhilHealthShare + pagIbig + withholdingTax;
-        double netPay = (monthlySalary - totalDeductions) + monthlyBenefits;
-
-        // Display deductions and net pay
-        System.out.println("Deductions:");
-        System.out.println("SSS: Php " + df.format(sss));
-        System.out.println("PhilHealth: Php " + df.format(employeePhilHealthShare));
-        System.out.println("Pag-IBIG: Php " + df.format(pagIbig));
-        System.out.println("Withholding Tax: Php " + df.format(withholdingTax));
-        System.out.println("Monthly Benefits: Php " + df.format(monthlyBenefits));
-        System.out.println("Net Pay: Php " + df.format(netPay));
-    }
-
-    private static double calculateSSS(double monthlySalary) {
-        NavigableMap<Double, Double> sssTable = new TreeMap<>();
-        double[] salaryBrackets = {
-                3250, 3750, 4250, 4750, 5250, 5750, 6250, 6750, 7250, 7750,
-                8250, 8750, 9250, 9750, 10250, 10750, 11250, 11750, 12250, 12750,
-                13250, 13750, 14250, 14750, 15250, 15750, 16250, 16750, 17250, 17750,
-                18250, 18750, 19250, 19750, 20250, 20750, 21250, 21750, 22250, 22750,
-                23250, 23750, 24250, 24750
-        };
-        double[] sssContributions = {
-                135.00, 157.50, 180.00, 202.50, 225.00, 247.50, 270.00, 292.50, 315.00, 337.50,
-                360.00, 382.50, 405.00, 427.50, 450.00, 472.50, 495.00, 517.50, 540.00, 562.50,
-                585.00, 607.50, 630.00, 652.50, 675.00, 697.50, 720.00, 742.50, 765.00, 787.50,
-                810.00, 832.50, 855.00, 877.50, 900.00, 922.50, 945.00, 967.50, 990.00, 1012.50,
-                1035.00, 1057.50, 1080.00, 1102.50
-        };
-
-        for (int i = 0; i < salaryBrackets.length; i++) {
-            sssTable.put(salaryBrackets[i], sssContributions[i]);
-        }
-
-        if (monthlySalary <= 0) {
-            logger.severe("Invalid monthly salary for SSS calculation: " + monthlySalary);
-            return 0.0;
-        }
-
-        if (monthlySalary < sssTable.firstKey()) {
-            return sssTable.get(sssTable.firstKey());
-        }
-
-        Double key = sssTable.ceilingKey(monthlySalary);
-        if (key == null) {
-            return sssTable.get(sssTable.lastKey());
-        }
-
-        return sssTable.get(key);
-    }
-
-    private static double calculateWithholdingTax(double taxableIncome) {
-        double withholdingTax = 0;
-
-        if (taxableIncome <= 20832) {
-            withholdingTax = 0;
-        } else if (taxableIncome > 20833 && taxableIncome <= 33333) {
-            withholdingTax = (taxableIncome - 20833) * 0.20;
-        } else if (taxableIncome > 33333 && taxableIncome <= 66667) {
-            withholdingTax = 2500 + (taxableIncome - 33333) * 0.25;
-        } else if (taxableIncome > 66667 && taxableIncome <= 166667) {
-            withholdingTax = 10833 + (taxableIncome - 66667) * 0.30;
-        } else if (taxableIncome > 166667 && taxableIncome <= 666667) {
-            withholdingTax = 40833.33 + (taxableIncome - 166667) * 0.32;
-        } else if (taxableIncome > 666667) {
-            withholdingTax = 200833.33 + (taxableIncome - 666667) * 0.35;
-        }
-
-        return withholdingTax;
-    }
-
-    private static LocalTime parseTime(String timeStr) throws IllegalArgumentException {
-        if (timeStr == null || timeStr.trim().isEmpty()) {
-            throw new IllegalArgumentException("Time string is empty");
-        }
-        try {
-            return LocalTime.parse(timeStr.trim(), TIME_FORMATTER);
-        } catch (DateTimeParseException e) {
-            throw new IllegalArgumentException("Invalid time format. Expected HH:mm", e);
-        }
-    }
-
-    private static String getCellValueAsString(Cell cell) {
-        if (cell == null) {
-            return "";
-        }
-
-        switch (cell.getCellType()) {
-            case STRING:
-                return cell.getStringCellValue();
-            case NUMERIC:
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return cell.getLocalDateTimeCellValue().toLocalTime().format(TIME_FORMATTER);
-                } else {
-                    return String.valueOf((long) cell.getNumericCellValue());
-                }
-            case BOOLEAN:
-                return String.valueOf(cell.getBooleanCellValue());
-            case FORMULA:
-                return cell.getCellFormula();
-            default:
-                return "";
-        }
-    }
-
+    /**
+     * Container for all employee information required for payroll processing.
+     * Includes:
+     * - Identification details (employee number, name, birthdate)
+     * - Compensation information (hourly rate)
+     * - Monthly benefit allowances (total value)
+     * 
+     * This object serves as the complete profile for payroll calculations,
+     * ensuring all necessary information is kept together and properly typed.
+     */
     private static class EmployeeDetails {
-        private final int employeeNumber;
-        private final String firstName;
-        private final String lastName;
-        private final String birthday;
-        private final double hourlyRate;
-        private final double monthlyBenefits;
+        private final int employeeNumber;     // Unique employee identifier
+        private final String firstName;      // Legal first name
+        private final String lastName;       // Legal last name
+        private final String birthday;       // Birthdate in MM/dd/yyyy format
+        private final double hourlyRate;     // Base hourly wage rate
+        private final double monthlyBenefits; // Total monthly allowances
 
-        public EmployeeDetails(int employeeNumber, String firstName, String lastName, String birthday, double hourlyRate, double monthlyBenefits) {
+        /**
+         * Constructs a complete employee profile
+         * @param employeeNumber Unique ID number
+         * @param firstName Legal first name
+         * @param lastName Legal last name
+         * @param birthday Birthdate in MM/dd/yyyy format
+         * @param hourlyRate Base hourly wage
+         * @param monthlyBenefits Sum of all monthly allowances
+         */
+        public EmployeeDetails(int employeeNumber, String firstName, String lastName,
+                             String birthday, double hourlyRate, double monthlyBenefits) {
             this.employeeNumber = employeeNumber;
             this.firstName = firstName;
             this.lastName = lastName;
@@ -588,52 +516,92 @@ public class MotorPHPayrollSystem {
             this.monthlyBenefits = monthlyBenefits;
         }
 
-        public int getEmployeeNumber() {
-            return employeeNumber;
-        }
-
-        public String getFirstName() {
-            return firstName;
-        }
-
-        public String getLastName() {
-            return lastName;
-        }
-
-        public String getBirthday() {
-            return birthday;
-        }
-
-        public double getHourlyRate() {
-            return hourlyRate;
-        }
-
-        public double getMonthlyBenefits() {
-            return monthlyBenefits;
-        }
+        // ACCESSOR METHODS
+        
+        /**
+         * @return The employee's unique identification number
+         */
+        public int getEmployeeNumber() { return employeeNumber; }
+        
+        /**
+         * @return The employee's legal first name
+         */
+        public String getFirstName() { return firstName; }
+        
+        /**
+         * @return The employee's legal last name
+         */
+        public String getLastName() { return lastName; }
+        
+        /**
+         * @return The employee's birthdate in MM/dd/yyyy format
+         */
+        public String getBirthday() { return birthday; }
+        
+        /**
+         * @return The employee's base hourly wage rate
+         */
+        public double getHourlyRate() { return hourlyRate; }
+        
+        /**
+         * @return The total value of monthly benefit allowances
+         */
+        public double getMonthlyBenefits() { return monthlyBenefits; }
     }
 
+    /**
+     * Container for daily attendance calculation results including:
+     * - Regular work minutes (productive time)
+     * - Late arrival minutes (tardiness)
+     * - Overtime pay earned
+     * 
+     * This object accumulates the results of processing a single day's
+     * attendance record, which are then aggregated into weekly totals.
+     */
     private static class AttendanceResult {
-        int regularMinutes = 0;
-        int lateMinutes = 0;
-        double overtimePay = 0;
+        int regularMinutes = 0; // Minutes of productive work time
+        int lateMinutes = 0;    // Minutes of tardiness
+        double overtimePay = 0;  // Pesos earned from overtime
     }
 
+    /**
+     * Configures the system logging infrastructure to:
+     * 1. Write detailed logs to a file (payroll_system.log)
+     * 2. Display messages on the console
+     * 3. Maintain consistent log formatting
+     * 4. Preserve historical log data
+     * 
+     * The logging system records:
+     * - Operational information (INFO level)
+     * - Warning conditions (WARNING level)
+     * - Error conditions (SEVERE level)
+     */
     private static class LoggerSetup {
+        /**
+         * Initializes and configures the logging system with:
+         * - File output (appended daily)
+         * - Console output
+         * - Simple text formatting
+         * - INFO level logging by default
+         */
         public static void configureLogger() throws IOException {
             Logger logger = Logger.getLogger("");
+            // Remove any default handlers
             for (Handler handler : logger.getHandlers()) {
                 logger.removeHandler(handler);
             }
 
+            // Configure file logging
             FileHandler fileHandler = new FileHandler("payroll_system.log", true);
             fileHandler.setFormatter(new SimpleFormatter());
             logger.addHandler(fileHandler);
 
+            // Configure console logging
             ConsoleHandler consoleHandler = new ConsoleHandler();
             consoleHandler.setFormatter(new SimpleFormatter());
             logger.addHandler(consoleHandler);
 
+            // Set default logging level
             logger.setLevel(Level.INFO);
         }
     }
