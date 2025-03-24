@@ -17,8 +17,18 @@ import java.util.*;
 import java.util.logging.*;
 
 /**
- * The MotorPH Payroll System is a Java-based program for computing payroll.
- * It processes employee details, calculates salary, applies deductions, and generate net pay.
+ * The MotorPH Payroll System is a Java-based program designed to automate all aspects of employee payroll processing.
+ * 
+ * This system automates:
+ * - Employee data retrieval
+ * - Attendance tracking
+ * - Salary computation
+ * - Deduction processing (e.g., taxes, benefits)
+ * - Payroll report generation
+ *
+ * The system reads employee data and attendance records from Excel files, processes the 
+ * information according to company policies and government regulations, and generates 
+ * comprehensive payroll reports for individual employees.
  */
 
 public class MotorPHPayrollSystem {
@@ -61,6 +71,7 @@ public class MotorPHPayrollSystem {
             LoggerSetup.configureLogger();
             logger.info("Starting MotorPH Payroll System");
 
+            // Create scanner to read user input from the console
             Scanner scanner = new Scanner(System.in);
 
             // Collect and validate employee number input
@@ -150,8 +161,13 @@ public class MotorPHPayrollSystem {
     }
 
     /**
-     * Validates that a file path is not null or empty
-     * @throws IllegalArgumentException if path is invalid
+     * Validates that a file path is properly formatted and points to an existing file.
+     * Performs two critical checks:
+     * 1. The path is not null or empty (basic validation)
+     * 2. The file exists at the specified location
+     * 
+     * @param filePath The path to validate
+     * @throws IllegalArgumentException if the path is invalid or file doesn't exist
      */
     private static void validateFilePath(String filePath) {
         if (filePath == null || filePath.trim().isEmpty()) {
@@ -166,6 +182,9 @@ public class MotorPHPayrollSystem {
      * - Personal information
      * - Compensation rates
      * - Benefit allowances
+     *
+     * @param filePath Path to the employee data file
+     * @param employeeNumber The ID number to search for
      * @return EmployeeDetails object or null if not found
      */
     private static EmployeeDetails getEmployeeDetails(String filePath, int employeeNumber) {
@@ -178,15 +197,18 @@ public class MotorPHPayrollSystem {
             return null;
         }
 
+        // Open the Excel workbook and search for employee
         try (FileInputStream fis = new FileInputStream(file);
              Workbook workbook = new XSSFWorkbook(fis)) {
 
+            // Access the Employee Details worksheet
             Sheet employeeSheet = workbook.getSheet("Employee Details");
             if (employeeSheet == null) {
                 logger.severe("Employee Details sheet not found");
                 return null;
             }
 
+            // Process each row looking for matching employee number
             boolean foundHeader = false;
             for (Row row : employeeSheet) {
                 if (row == null) continue;
@@ -254,8 +276,11 @@ public class MotorPHPayrollSystem {
     }
 
     /**
-     * Prompts user for month and validates against valid months
-     * @return Valid month name in uppercase
+     * Prompts the user to enter a payroll month and validates the input against
+     * the list of valid months.
+     *
+     * @param scanner The input scanner to read user responses
+     * @return Validated month name in uppercase (e.g., "JANUARY")
      */
     private static String getValidMonth(Scanner scanner) {
         String month;
@@ -273,13 +298,14 @@ public class MotorPHPayrollSystem {
      * Main payroll processing function that:
      * 1. Validates input files
      * 2. Retrieves employee data
-     * 3. Calculates monthly salary from attendance
+     * 3. Calculates salary from attendance
      * 4. Computes deductions
      * 5. Displays complete payroll report
      */
     public static void displayEmployeePayroll(String filePath, int employeeNumber, String month) {
         validateFilePath(filePath);
 
+        // Check file existence
         File file = new File(filePath);
         if (!file.exists()) {
             String errorMsg = "File not found: " + filePath;
@@ -287,16 +313,20 @@ public class MotorPHPayrollSystem {
             throw new IllegalArgumentException(errorMsg);
         }
 
+        // Process the payroll data
         try (FileInputStream fis = new FileInputStream(file);
              Workbook workbook = new XSSFWorkbook(fis)) {
 
             logger.info("Processing payroll for employee " + employeeNumber + " for month " + month);
 
+            // Access required worksheets
             Sheet employeeSheet = workbook.getSheet("Employee Details");
             Sheet attendanceSheet = workbook.getSheet("Attendance Record");
 
+            // Verify worksheets exist
             validateSheets(employeeSheet, attendanceSheet);
 
+            // Retrieve employee profile
             EmployeeDetails employeeDetails = getEmployeeDetails(employeeSheet, employeeNumber);
             if (employeeDetails == null) {
                 String errorMsg = "Employee Number " + employeeNumber + " not found.";
@@ -305,15 +335,18 @@ public class MotorPHPayrollSystem {
                 return;
             }
 
+            // Display employee information header
             displayEmployeeHeader(employeeDetails, month);
 
+            // Calculate monthly salary from attendance records
             double monthlySalary = calculateMonthlySalary(attendanceSheet, employeeNumber, employeeDetails.getHourlyRate(), month);
             
             // Display gross salary before deductions
             DecimalFormat df = new DecimalFormat("#,##0.00");
             System.out.println("Gross Salary: Php " + df.format(monthlySalary));
             System.out.println("---------------------------------------");
-            
+
+            // Calculate and display all payroll deductions
             calculateDeductions(monthlySalary, employeeDetails.getMonthlyBenefits());
 
         } catch (IOException e) {
